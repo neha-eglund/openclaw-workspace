@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "updatedAt": "2026-04-21T07:45:52.568Z",
+  "entries": {
+    "memory:memory/2026-04-17.md:1:20": {
+      "key": "memory:memory/2026-04-17.md:1:20",
+      "path": "memory/2026-04-17.md",
+      "startLine": 1,
+      "endLine": 20,
+      "source": "memory",
+      "snippet": "# 2026-04-17 - Daily Notes ## Session Log - Neha asked what we did yesterday — no memory files existed yet (fresh workspace) - Set up the memory system: created `memory/` folder, `MEMORY.md`, and this daily note template - Memory system is now active and ready to use ## Notes - Neha asked for consolidation of 4 nightly AI jobs solutions - Report written to `nightly-ai-jobs-solutions-report.md` - Three repos inspected: nightly-jobs-scheduler, claude-github-demo, openclaw-poc - Four solutions: GitHub-hosted runner, EC2 self-hosted, GitHub cron schedule, OpenClaw cron - Key finding: OWASP OOM is the main driver for moving to EC2; OpenClaw adds multi-channel delivery - Full report rewritten",
+      "recallCount": 2,
+      "dailyCount": 0,
+      "groundedCount": 0,
+      "totalScore": 1.279622633207258,
+      "maxScore": 0.6476602569905018,
+      "firstRecalledAt": "2026-04-20T08:10:31.266Z",
+      "lastRecalledAt": "2026-04-21T07:45:52.568Z",
+      "queryHashes": [
+        "04ebd1b9045c",
+        "fda4046f8671"
+      ],
+      "recallDays": [
+        "2026-04-20",
+        "2026-04-21"
+      ],
+      "conceptTags": [
+        "memory.md",
+        "nightly-jobs-scheduler",
+        "claude-github-demo",
+        "openclaw-poc",
+        "github-hosted",
+        "self-hosted",
+        "multi-channel",
+        "log"
+      ]
+    }
+  }
+}

@@ -1,0 +1,17 @@
+# Secrets — never commit
+config/slack-tokens.json
+config/slack-webhooks.json
+
+# Runtime artifacts
+state/
+nightly-results/
+.openclaw-cli-images/
+
+# Temporary files
+/tmp/
+*.pdf
+*.pyc
+__pycache__/
+
+# OS
+.DS_Store
