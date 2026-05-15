@@ -1,0 +1,19 @@
+{
+  "name": "paycontrol-weekly-summary",
+  "description": "Weekly engineering dashboard — collects 7-day GitHub activity across 3 repos, posts 4-part report to #paycontrol-reports. Runs every Friday at 07:50 Stockholm time.",
+  "schedule": {
+    "kind": "cron",
+    "expr": "50 7 * * 5",
+    "tz": "Europe/Stockholm"
+  },
+  "sessionTarget": "isolated",
+  "delivery": {
+    "mode": "none"
+  },
+  "payload": {
+    "kind": "agentTurn",
+    "model": "claude-sonnet-4-6",
+    "timeoutSeconds": 1800,
+    "message": "Read the skill file at <WORKSPACE>/skills/paycontrol-weekly-summary/SKILL.md and execute all instructions in it exactly as written.\n\nCredentials:\n- GH_TOKEN=<GH_TOKEN>\n- WEBHOOK: load from <WORKSPACE>/config/slack-webhooks.json\n\nSet GH_TOKEN as an env var before running."
+  }
+}

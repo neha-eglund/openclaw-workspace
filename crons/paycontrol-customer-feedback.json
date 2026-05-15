@@ -1,0 +1,19 @@
+{
+  "name": "paycontrol-customer-feedback",
+  "description": "Weekly customer feedback report — reads #paycontrol-feedback, classifies items, matches to GitHub issues, posts to #paycontrol-reports. Runs every Friday at 07:30 Stockholm time.",
+  "schedule": {
+    "kind": "cron",
+    "expr": "30 7 * * 5",
+    "tz": "Europe/Stockholm"
+  },
+  "sessionTarget": "isolated",
+  "delivery": {
+    "mode": "none"
+  },
+  "payload": {
+    "kind": "agentTurn",
+    "model": "claude-sonnet-4-6",
+    "timeoutSeconds": 1800,
+    "message": "Read the skill file at <WORKSPACE>/skills/paycontrol-customer-requirements/SKILL.md and execute all instructions in it exactly as written.\n\nCredentials:\n- SLACK_TOKEN=<SLACK_TOKEN>\n- GH_TOKEN=<GH_TOKEN>\n- WEBHOOK=<SLACK_WEBHOOK_PAYCONTROL_REPORTS>\n\nSet all three as env vars before running."
+  }
+}
