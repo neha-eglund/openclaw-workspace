@@ -91,6 +91,24 @@ open('/tmp/feedback_since_date.txt','w').write(since)
 "
 ```
 
+For each message, also check for reactions. A ✅ reaction (`white_check_mark`) on a message means the team has manually marked it as resolved — this takes priority over everything else in Step 4:
+
+```bash
+python3 -c "
+import json
+msgs = json.load(open('/tmp/feedback_messages.json'))
+resolved_by_reaction = set()
+for m in msgs:
+    reactions = m.get('reactions', [])
+    for r in reactions:
+        if r['name'] in ('white_check_mark', 'heavy_check_mark'):
+            resolved_by_reaction.add(m['ts'])
+            break
+json.dump(list(resolved_by_reaction), open('/tmp/reaction_resolved.json', 'w'))
+print(f'Messages marked resolved by reaction: {len(resolved_by_reaction)}')
+"
+```
+
 For each message that has `reply_count > 0`, fetch thread replies:
 
 ```bash
@@ -345,6 +363,18 @@ For each search result, apply these rules **in order** — use the first rule th
 
 This means the report is always conservative — uncertain matches never appear as confirmed. A wrong match is worse than no match.
 
+**Step 5b — Apply reaction-based resolution (highest priority)**
+
+Before any GitHub matching, check if the message timestamp is in `/tmp/reaction_resolved.json`.
+
+If it is:
+- Set `status = ✅ Resolved`
+- Set `match_confidence = definitive`
+- Set `resolution_source = "✅ reaction by team"`
+- Skip GitHub matching for this item entirely — the team has explicitly signed off on it
+
+This takes priority over all other status signals. A ✅ reaction means a human on the team reviewed and resolved it.
+
 **Step 6 — Set status (for accepted matches only)**
 
 - CLOSED issue + merged PR: `✅ Resolved`
@@ -450,6 +480,7 @@ Group `FEEDBACK_ITEMS` by Category. Within each group, sort by Severity (Blockin
 
 *✅ Resolved*
 • {severity_emoji} {Category} — {summary}  {issue_url}  · PR #{n} merged  · _worked on by: {logins}_  · _match: {confidence}_
+• {severity_emoji} {Category} — {summary}  · _resolved by: ✅ team reaction_  (for reaction-resolved items with no GitHub issue)
 
 *🔧 Tracked*
 • {severity_emoji} {Category} — {summary}  {issue_url}  · {PR links or "No PR"}  · _worked on by: {logins}_  · _match: {confidence}_
@@ -552,6 +583,7 @@ print('Slack message sent')
 - Slack webhook path: `/Users/nehaeglund/.openclaw/workspace/config/slack-webhooks.json`
 - GitHub Project: `https://github.com/orgs/PayControlLimited/projects/1`
 - Feedback channel ID: `C0AKQRQ6QDA` (private, bot is member)
+- **Reaction-based resolution**: a ✅ (`white_check_mark`) reaction on any feedback message marks it as resolved, overriding all other status signals. Requires `reactions:read` scope on the Slack bot.
 - Matching is thread-context-driven: derive specific technical search phrases from the full Slack thread, then evaluate each GitHub result by reading its title and body — do not match on keyword overlap alone
 - False matches are worse than no match — prefer `❌ Untracked` when unsure
 - If `read:project` GraphQL scope is missing, skip Step 3 and mark all items as `❌ Untracked (project unavailable)`
