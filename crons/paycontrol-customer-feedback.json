@@ -10,6 +10,12 @@
   "delivery": {
     "mode": "none"
   },
+  "failureAlert": {
+    "mode": "webhook",
+    "to": "<SLACK_WEBHOOK_PAYCONTROL_REPORTS>",
+    "after": 1,
+    "cooldownMs": 3600000
+  },
   "payload": {
     "kind": "agentTurn",
     "model": "claude-sonnet-4-6",
