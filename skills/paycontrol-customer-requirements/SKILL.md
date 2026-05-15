@@ -266,14 +266,12 @@ From the `full_context`:
    - 🟡 High — significant friction, compliance risk, or explicitly time-sensitive in the thread
    - 🔵 Normal — improvement, no urgency stated
 4. **Note resolution signals in the thread**: if any reply says the fix is shipped, live, "accessible now", "removed", "on the way" and a subsequent message confirms it — note this. It will influence status.
-5. **Note who raised it** from the message text using these patterns:
-   - `"[Name] at [Company]"` → `Name / Company`
-   - `"from [Name]"` → `Name`
-   - `"feedback from [Name]"` → `Name`
-   - `"I had a call with [role]"` → role description
-   - `"a large PIQ client"` → `PIQ client (via team)`
-   - No name found → `team member`
-   - Do NOT attempt Slack user ID resolution (`users:read` scope not available)
+5. **Resolve the poster's real name** — for every Slack message, call:
+   ```bash
+   curl -s "https://slack.com/api/users.info?user=<USER_ID>" \
+     -H "Authorization: Bearer $SLACK_TOKEN"
+   ```
+   Use the `real_name` field from the response. Always show the real name in the report — never show a raw user ID like `U03NCDJR6`.
 
 #### 4c — GitHub matching (thread-context-driven search)
 
@@ -503,6 +501,26 @@ json.dump(snapshot, open('/Users/nehaeglund/.openclaw/workspace/nightly-results/
 print(f'Snapshot saved  |  Report window: {since_date} -> $(date +%Y-%m-%d)')
 "
 ```
+
+### Step 5c — Handle file attachments (mandatory)
+
+For every Slack message that contains a file attachment:
+
+1. Call `https://slack.com/api/files.info?file=<FILE_ID>` with the bot token to get metadata
+2. Download via the `url_private_download` field with `-H "Authorization: Bearer $SLACK_TOKEN"`
+3. Extract content based on file type:
+   - `.docx` — extract text with `python-docx`
+   - `.pdf` — extract text with `pdfplumber` or `pypdf`
+   - `.m4a`, `.mp3`, `.wav`, `.ogg`, `.webm` (audio) — transcribe with OpenAI Whisper:
+     ```bash
+     pip3 install --quiet --user openai-whisper
+     python3 -c "import whisper; m = whisper.load_model('base'); r = m.transcribe('/tmp/audio_file'); print(r['text'])"
+     ```
+4. Add extracted content or transcript as `full_context` for that message. For audio items, add `_Source: voice note (transcribed)_` to the report line.
+
+### Step 5d — Read supplement files (mandatory)
+
+Check `/Users/nehaeglund/.openclaw/workspace/nightly-results/customer-feedback/supplements/` for `.md` files. Treat each item as additional feedback. Move processed files to `supplements/processed/` after the report.
 
 ### Step 6 — Post to Slack #paycontrol-reports
 

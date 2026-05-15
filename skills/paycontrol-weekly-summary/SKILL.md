@@ -218,17 +218,52 @@ If matplotlib is missing: `pip3 install --quiet --user matplotlib`.
 
 Output `MEDIA:<chart path>` first, then the report in markdown format using the template below.
 
-### 7. Post to Slack — 2 messages
+### 7. Resolve contributor full names (mandatory)
 
-**Message 1 (immediate):** Dashboard header + all mini cards.
-**Message 2 (60 seconds later):** Cross-repo action items + contributors.
-
-Schedule message 2 as a background process:
+For every GitHub login that appears in the report, resolve it to the contributor's full name:
 
 ```bash
-(sleep 60 && python3 /tmp/post_weekly_part2.py) &
-echo "Part 2 scheduled for $(date -v+1M '+%H:%M')"
+gh api /users/<login> --jq '.name'
 ```
+
+Use only the full name everywhere in the report — Team Spotlights, Key Deliveries, Contributors list, stale PR assignees, and action items. Do NOT show the login or @handle.
+
+### 8. Post to Slack — 4 messages (60 seconds apart)
+
+Post FOUR messages to #paycontrol-reports. Schedule each with a 60-second background sleep:
+
+```bash
+(sleep 60 && python3 /tmp/post_msg2.py) &
+(sleep 120 && python3 /tmp/post_msg3.py) &
+(sleep 180 && python3 /tmp/post_msg4.py) &
+```
+
+**Message 1 (immediate)** — Header snapshot:
+- 🚀 *PayControl Engineering — [date range]*
+- Totals line: PRs merged · issues closed · contributors
+- Repo stats in triple-backtick code block: Repo | PRs | Issues Closed | In Progress | In Review | Security
+
+**Message 2 (+60s)** — Team spotlights + key deliveries:
+```
+━━━━━━━━━━━━━━━━━━━━━━
+⭐ *TEAM SPOTLIGHTS*
+One bullet per contributor: *Full Name* + issues closed (only if >0, before PRs) + PRs merged + one short impact sentence.
+
+━━━━━━━━━━━━━━━━━━━━━━
+🔑 *KEY DELIVERIES*
+*── PayControl ──*  *── PayControl-PCI ──*  *── PayControl-GitOps ──*
+Each: emoji + *Bold title* — max 5-6 words. Full Name · <url|Issue #NNN> · <url|PR #NNN>
+```
+
+**Message 3 (+120s)** — Stale items:
+- Stale board issues (🔴 >30d, 🟡 >7d): pipe-link + age + column + full name assignee + nudge
+- Stale PRs: pipe-link + age + action needed
+- One-line untracked PR nudge
+
+**Message 4 (+180s)** — Action items + contributors:
+- Action items: priority emoji + pipe-links + description + bold age
+- Contributors: *Full Name* + PRs + issues closed + repos
+- Total line
 
 Load webhook:
 ```python
