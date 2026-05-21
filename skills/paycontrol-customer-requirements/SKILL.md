@@ -687,7 +687,7 @@ Post a short summary to the channel, then reply in the thread with full detail. 
 import json, urllib.request
 
 config = json.load(open('/Users/nehaeglund/.openclaw/workspace/config/slack-tokens.json'))
-token = config['bot_token']
+token = config['reports_bot_token']
 # Set DRY_RUN = True to skip Slack posting entirely — output appears in webchat only
 DRY_RUN = False
 channel = config['paycontrol_reports_channel']
@@ -788,7 +788,7 @@ If no previous poll exists, omit this section entirely.
 
 ```python
 config = json.load(open('/Users/nehaeglund/.openclaw/workspace/config/slack-tokens.json'))
-token = config['bot_token']
+token = config['reports_bot_token']
 channel = config['paycontrol_reports_channel']
 
 def post_poll_question(text, thread_ts):
