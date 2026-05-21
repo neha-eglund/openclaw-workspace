@@ -6,6 +6,19 @@ config/slack-webhooks.json
 state/
 nightly-results/
 .openclaw-cli-images/
+.openclaw/
+nightly-ai-jobs-slack.md
+nightly-ai-jobs-solutions-report.md
+
+# IDE
+.idea/
+
+# Nested workspace/worktree directories (each has its own .git)
+claude/
+claude-github-demo/
+fast/
+nightly/
+powerful/
 
 # Temporary files
 /tmp/

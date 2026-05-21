@@ -200,7 +200,7 @@ print(f'Project items loaded: {len(board)}')
 ```bash
 for REPO in PayControlLimited/PayControl PayControlLimited/PayControl-PCI PayControlLimited/PayControl-GitOps; do
   REPO_KEY=$(echo $REPO | tr / _)
-  gh pr list --repo $REPO --state all --limit 100 \
+  gh pr list --repo $REPO --state all --limit 200 \
     --json number,title,body,state,url,closingIssuesReferences 2>/dev/null \
   | python3 -c "
 import json, sys
@@ -294,77 +294,89 @@ From the `full_context`:
    ```
    Use the `real_name` field from the response. Always show the real name in the report — never show a raw user ID like `U03NCDJR6`.
 
-#### 4c — GitHub matching (thread-context-driven search)
+#### 4c — GitHub matching (bulk fetch + semantic comparison)
 
-**Do not use keyword overlap against issue titles.** Instead, use the `full_context` to derive 2–4 precise search phrases that capture the specific technical behaviour described, then run targeted GitHub searches.
+**Do not rely on keyword search.** Instead, fetch all issues from GitHub once, then compare each feedback item semantically against the full issue list. This catches matches even when the terminology differs completely.
 
-For each feedback item:
+**Step 1 — Check thread for definitive GitHub references first**
 
-**Step 1 — Derive search phrases from the thread**
-
-Read the full thread and extract the specific technical terms: UI component names, API names, error messages, flow names, connection names, configuration field names. Use these — not paraphrases — as your search terms.
-
-Examples of good vs bad search phrases:
-- ✅ `"flow tab decisions demo merchant"` (specific UI location from thread)
-- ✅ `"login loop secure session cookie"` (specific error mechanism from thread)
-- ✅ `"citizen yaspa connection"` (exact names mentioned)
-- ❌ `"authentication issue"` (too vague)
-- ❌ `"UI problem"` (no signal)
-
-**Step 2 — Run GitHub searches**
-
-```bash
-# Run 2–4 searches per feedback item using the derived phrases
-gh issue list --repo PayControlLimited/PayControl --state all \
-  --search "<phrase>" --json number,title,state,url,body | python3 -c "
-import json, sys
-issues = json.load(sys.stdin)
-for i in issues[:5]:
-    print(i['number'], i['state'], i['title'])
-    print('  ', (i.get('body','') or '')[:150])
-"
-```
-
-Also search PayControlLimited/PayControl-PCI and PayControlLimited/PayControl-GitOps if the feedback relates to infrastructure, PCI scope, or deployment.
-
-**Step 3 — Check thread for definitive GitHub references first**
-
-Before running any search, scan the `full_context` for explicit GitHub signals:
+Before any matching, scan the `full_context` for explicit GitHub signals:
 
 ```python
 import re
-# GitHub URLs: https://github.com/PayControlLimited/*/issues/NNN
 github_url_pat = re.compile(r'https://github\.com/PayControlLimited/[^/]+/issues/(\d+)')
-# Bare issue references: #NNN (only if clearly referencing an issue, not a PR)
 bare_ref_pat = re.compile(r'(?<!\d)#(\d+)(?!\d)')
-
 urls_found = github_url_pat.findall(full_context)
 bare_refs = bare_ref_pat.findall(full_context)
 ```
 
-If a GitHub issue URL is found in the thread → **match_confidence = `definitive`** — skip search, use that issue number directly.
+If a GitHub issue URL is found → **match_confidence = `definitive`** — use that issue number directly, skip all other matching.
 
-If a bare `#NNN` reference is found → fetch the issue to confirm it's an issue (not a PR) and that it relates to the feedback → **match_confidence = `high`** if confirmed.
+If a bare `#NNN` is found → fetch the issue to confirm it relates to the feedback → **match_confidence = `high`** if confirmed.
 
-**Step 4 — Evaluate search candidates and assign confidence**
+**Step 2 — Bulk fetch all issues (open + recently closed)**
 
-For each search result, apply these rules **in order** — use the first rule that fires:
+Run once before processing any feedback items. Fetch all issues from all three repos including both open and closed:
+
+```bash
+for REPO in PayControlLimited/PayControl PayControlLimited/PayControl-PCI PayControlLimited/PayControl-GitOps; do
+  REPO_KEY=$(echo $REPO | tr / _)
+  gh issue list --repo $REPO --state all --limit 500 \
+    --json number,title,state,url,body,labels,assignees \
+  | python3 -c "
+import json, sys
+issues = json.load(sys.stdin)
+# Trim body to first 400 chars — enough for semantic matching, keeps memory low
+for i in issues:
+    i['body'] = (i.get('body') or '')[:400]
+    i['repo'] = '$REPO'
+json.dump(issues, open('/tmp/issues_${REPO_KEY}.json', 'w'))
+print(f'{len(issues)} issues from $REPO')
+"
+done
+
+# Merge into one flat list
+python3 -c "
+import json
+all_issues = []
+for repo_key in [
+    'PayControlLimited_PayControl',
+    'PayControlLimited_PayControl-PCI',
+    'PayControlLimited_PayControl-GitOps'
+]:
+    all_issues.extend(json.load(open(f'/tmp/issues_{repo_key}.json')))
+json.dump(all_issues, open('/tmp/all_issues.json', 'w'))
+print(f'Total issues loaded: {len(all_issues)}')
+"
+```
+
+**Step 3 — Semantic comparison per feedback item**
+
+For each feedback item, read its `full_context` and compare it against `/tmp/all_issues.json`. You are doing this comparison — not a keyword search. Ask yourself:
+
+> *"Does this issue describe the same underlying problem or feature as the feedback, even if the words are different?"*
+
+For each issue, consider:
+- Does the **title** describe the same functional area or problem type?
+- Does the **body** mention the same component, flow, error, or behaviour?
+- Is this a **different angle on the same root cause** (e.g. feedback says "button greyed out", issue says "edit state disables all fields")?
+
+Assign confidence using these rules **in order** — use the first that fires:
 
 | Rule | Confidence |
 |---|---|
 | GitHub URL or confirmed `#NNN` found in Slack thread | `definitive` |
-| Issue title contains 3+ exact technical terms from the thread (component name, error message, flow name) | `high` |
-| Issue title matches the core concept AND body describes the same component or behaviour | `high` |
-| Issue title partially overlaps AND body is plausible but not specific | `medium` |
-| Only shared generic words; issue covers a different feature area | `low` |
+| Same problem, same component — title + body clearly describe the same issue | `high` |
+| Same functional area, plausibly the same root cause, body partially matches | `medium` (demoted) |
+| Superficial overlap only — different feature or different failure mode | `low` (demoted) |
 
-**Step 5 — Apply confidence gate (automatic — no human needed)**
+**Step 4 — Apply confidence gate**
 
 - `definitive` or `high` → use the match; set status as Resolved/Tracked
-- `medium` or `low` → **automatically demote to `❌ Untracked`**; add a note in the Conclusion line: `_(possible match: #NNN — low confidence, verify manually)_`
+- `medium` or `low` → **automatically demote to `❌ Untracked`**; note: `_(possible match: #NNN — verify manually)_`
 - No match found → `❌ Untracked`
 
-This means the report is always conservative — uncertain matches never appear as confirmed. A wrong match is worse than no match.
+A wrong match is worse than no match — stay conservative.
 
 **Step 5b — Apply reaction-based resolution (highest priority)**
 
@@ -451,6 +463,21 @@ print(sorted(set((c.get('user') or {}).get('login','') for c in comments if c.ge
 
 Merge all four sets into a single deduplicated `worked_on_by` list. Exclude bot accounts (logins ending in `[bot]`).
 
+Then resolve each login to a full name before storing. Load the names cache first:
+
+```python
+import json
+names = json.load(open('/Users/nehaeglund/.openclaw/workspace/config/contributor-names.json'))
+```
+
+For any login not in the cache, fall back to the GitHub API and add it to the file:
+
+```bash
+gh api /users/<login> --jq '.name'
+```
+
+Store full names (e.g. "Rasmus Middendorff"), not logins. If the API returns null or empty, fall back to the login as-is.
+
 Also check `/tmp/issue_to_prs.json` to attach linked PRs (number, state, repo, url).
 
 Produce a structured list stored in memory as `FEEDBACK_ITEMS`. Each item must include a `match_confidence` field. Medium and low confidence matches are automatically demoted to `❌ Untracked` — they never appear in Resolved or Tracked sections.
@@ -471,7 +498,7 @@ Produce a structured list stored in memory as `FEEDBACK_ITEMS`. Each item must i
     board_column: "In Progress",
     linked_prs: [{"number": 99, "state": "MERGED", "repo": "PayControl", "url": "..."}],
     raised_by: "Erik",
-    worked_on_by: ["rasmusmiddendorff", "lirre8"]   // assignees + past assignees + PR authors + committers + commenters; [] if nobody found
+    worked_on_by: ["Rasmus Middendorff", "Sebastian Andersson"]   // full names from contributor-names.json or gh api /users/<login>; [] if nobody found
   },
   ...
 ]
@@ -511,7 +538,7 @@ Rules:
 - `severity_emoji`: 🔴 Blocking · 🟡 High · 🔵 Normal
 - Issue URL as plain link (renders clickable in Slack)
 - If multiple PRs: list on same line separated by `·`
-- `worked on by` shows GitHub logins, comma-separated; omit for ❌ Untracked items (no issue to look up)
+- `worked on by` shows full names (resolved via `gh api /users/<login> --jq '.name'`), comma-separated; omit for ❌ Untracked items (no issue to look up)
 - If `worked_on_by` is empty for a tracked/resolved item, show `_worked on by: unassigned_`
 - Each Resolved and Tracked bullet ends with `· _match: {confidence}_` where confidence is `definitive`, `high`, `medium`, or `low`
 - `medium` and `low` confidence matches are automatically demoted to ❌ Untracked — never shown as Resolved or Tracked
@@ -523,25 +550,107 @@ Rules:
 - GitHub issue and PR links MUST use Slack pipe-link syntax — never paste raw URLs. Format: opening angle-bracket + full URL + pipe + display label + closing angle-bracket. Issue label = `Issue #NNN`. PR label = `PR #NNN`. This makes only the short label visible and clickable in Slack.
 - The full structured report is posted to both webchat and Slack — not a condensed digest
 
-### Step 5b — Save last-run snapshot
+**Tone rules (mandatory):**
+- Neutral and factual throughout — describe what was reported, not who said it or how
+- No personal opinions, names of external contacts, or company names from the feedback source
+- Frame all untracked items as *areas of improvement* or *opportunities*, not complaints or problems
+- Summaries describe the functional gap or enhancement, not the reporter's reaction to it
+- _Question_ line: describe the underlying need or gap in one neutral sentence — not a quote or paraphrase of the original message
+- _Conclusion_ line: state the recommended next step clearly and positively (e.g. "Recommended: create a GitHub issue to explore a visual rule builder")
 
-After building the report, save the current timestamp and the actual date window used:
+### Step 5b — Save last-run snapshot and compute week-over-week trend
 
-```bash
-python3 -c "
-import json, time
+After building the report, save the current run's stats and compare against last week's snapshot.
+
+**Snapshot directory:** `/Users/nehaeglund/.openclaw/workspace/nightly-results/customer-feedback/snapshots/`
+
+```python
+import json, os, glob, time
+
+SNAPSHOT_DIR = os.path.expanduser('~/.openclaw/workspace/nightly-results/customer-feedback/snapshots')
+os.makedirs(SNAPSHOT_DIR, exist_ok=True)
+
 since_date = open('/tmp/feedback_since_date.txt').read().strip()
-snapshot = {
-    'last_ts': str(time.time()),
-    'last_date': '$(date +%Y-%m-%d)',
+today = time.strftime('%Y-%m-%d')
+
+# Count items by category and severity from FEEDBACK_ITEMS
+by_category = {}
+by_severity = {'🔴 Blocking': 0, '🟡 High': 0, '🔵 Normal': 0}
+resolved = tracked = untracked = 0
+for item in FEEDBACK_ITEMS:
+    cat = item['category']
+    by_category[cat] = by_category.get(cat, 0) + 1
+    sev = item['severity']
+    if sev in by_severity:
+        by_severity[sev] += 1
+    if item['status'].startswith('✅'):
+        resolved += 1
+    elif item['status'].startswith('🔧'):
+        tracked += 1
+    else:
+        untracked += 1
+
+this_snapshot = {
+    'date': today,
     'window_from': since_date,
-    'window_to': '$(date +%Y-%m-%d)',
+    'window_to': today,
+    'total': len(FEEDBACK_ITEMS),
+    'resolved': resolved,
+    'tracked': tracked,
+    'untracked': untracked,
+    'blocking': by_severity.get('🔴 Blocking', 0),
+    'high': by_severity.get('🟡 High', 0),
+    'normal': by_severity.get('🔵 Normal', 0),
+    'by_category': by_category
+}
+
+# Load last week's snapshot for deltas
+prev_snapshots = sorted(glob.glob(f'{SNAPSHOT_DIR}/snapshot-*.json'))
+last_snapshot = json.load(open(prev_snapshots[-1])) if prev_snapshots else None
+
+# Save this run
+with open(f'{SNAPSHOT_DIR}/snapshot-{today}.json', 'w') as f:
+    json.dump(this_snapshot, f, indent=2)
+
+# Also update last-run.json for the time window tracking
+last_ts_snapshot = {
+    'last_ts': str(time.time()),
+    'last_date': today,
+    'window_from': since_date,
+    'window_to': today,
     'items_found': len(FEEDBACK_ITEMS)
 }
-json.dump(snapshot, open('/Users/nehaeglund/.openclaw/workspace/nightly-results/customer-feedback/last-run.json', 'w'), indent=2)
-print(f'Snapshot saved  |  Report window: {since_date} -> $(date +%Y-%m-%d)')
-"
+json.dump(last_ts_snapshot, open('/Users/nehaeglund/.openclaw/workspace/nightly-results/customer-feedback/last-run.json', 'w'), indent=2)
+print(f'Snapshot saved  |  Report window: {since_date} -> {today}')
 ```
+
+**Compute week-over-week deltas** — compare `this_snapshot` to `last_snapshot`. For each metric, delta = this - last. Format as:
+- Positive = `+N ↑` — use 🔴 for bad signals (blocking, untracked going up), ✅ for good (resolved going up)
+- Negative = `-N ↓` — use ✅ for good (untracked going down), 🔴 for bad (resolved dropping)
+- Zero = `no change`
+- No prior snapshot = `(no prior data)`
+
+Add a `*[ ~ ] Week-over-Week*` section to both the webchat and Slack report (after the main report, before any footer):
+
+```
+*[ ~ ]  Week-over-Week · <prev_date> → <today>*
+```
+Total items  <N>   <delta>
+Resolved     <N>   <delta ✅/🔴>
+Tracked      <N>   <delta>
+Questions    <N>   <delta 🔴/✅>
+🔴 Blocking  <N>   <delta 🔴/✅>
+🟡 High      <N>   <delta>
+🔵 Normal    <N>   <delta>
+```
+_(No prior data — trend will appear from next run)_ ← use only if no previous snapshot
+
+*Open questions with possible GitHub issues (manual verification needed):*
+For each open question (items with no GitHub issue), list one bullet with:
+- severity emoji + category + summary + date
+- If a possible match was found via bulk semantic matching: → _(possible match: <url|#NNN> STATE — one-line reason)_
+- If no match found: → _(no match found)_
+Use Slack pipe-link format for all issue links: <https://github.com/.../issues/NNN|#NNN>
 
 ### Step 5c — Handle file attachments (mandatory)
 

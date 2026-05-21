@@ -214,28 +214,51 @@ python3 "$SKILL_DIR/chart.py" "$OUT" "$TODAY" \
 
 If matplotlib is missing: `pip3 install --quiet --user matplotlib`.
 
-### 6. Post to webchat
+### 6. Resolve contributor full names (mandatory)
 
-Output `MEDIA:<chart path>` first, then the report in markdown format using the template below.
+Before generating any report output, resolve every GitHub login that appears in the data to the contributor's full name.
 
-### 7. Resolve contributor full names (mandatory)
+Load the names cache first:
 
-For every GitHub login that appears in the report, resolve it to the contributor's full name:
+```python
+import json
+names = json.load(open('/Users/nehaeglund/.openclaw/workspace/config/contributor-names.json'))
+# names is a dict: {"alipas": "Apostolis Lipas", ...}
+```
+
+For any login not in the cache, fall back to the GitHub API and add it to the file:
 
 ```bash
 gh api /users/<login> --jq '.name'
 ```
 
-Use only the full name everywhere in the report — Team Spotlights, Key Deliveries, Contributors list, stale PR assignees, and action items. Do NOT show the login or @handle.
+Use only the full name everywhere in the report — Team Spotlights, Key Deliveries, Contributors list, stale PR assignees, and action items. Do NOT show the login or @handle anywhere (webchat or Slack).
+
+### 7. Post to webchat
+
+Output `MEDIA:<chart path>` first, then the report in markdown format using the template below.
 
 ### 8. Post to Slack — 4 messages (60 seconds apart)
 
-Post FOUR messages to #paycontrol-reports. Schedule each with a 60-second background sleep:
+Post FOUR messages to #paycontrol-reports sequentially using a single Python script. Do NOT use background shell processes (`&`) — they are killed when the session ends and messages silently disappear.
 
-```bash
-(sleep 60 && python3 /tmp/post_msg2.py) &
-(sleep 120 && python3 /tmp/post_msg3.py) &
-(sleep 180 && python3 /tmp/post_msg4.py) &
+```python
+import json, urllib.request, time
+
+webhook = json.load(open('/Users/nehaeglund/.openclaw/workspace/config/slack-webhooks.json'))['paycontrol-reports']
+
+def post(text):
+    payload = json.dumps({'text': text}).encode()
+    req = urllib.request.Request(webhook, data=payload, headers={'Content-Type': 'application/json'})
+    urllib.request.urlopen(req)
+
+post(msg1)
+time.sleep(60)
+post(msg2)
+time.sleep(60)
+post(msg3)
+time.sleep(60)
+post(msg4)
 ```
 
 **Message 1 (immediate)** — Header snapshot:
@@ -265,11 +288,6 @@ Each: emoji + *Bold title* — max 5-6 words. Full Name · <url|Issue #NNN> · <
 - Contributors: *Full Name* + PRs + issues closed + repos
 - Total line
 
-Load webhook:
-```python
-import json, urllib.request
-webhook = json.load(open('/Users/nehaeglund/.openclaw/workspace/config/slack-webhooks.json'))['paycontrol-reports']
-```
 
 ---
 
