@@ -734,6 +734,13 @@ The comparison table and nothing else.
 Heading: *🔍 Open questions — possible GitHub matches (manual verification needed)*
 One bullet per untracked item across the full history. If a possible GitHub match exists, show it as a pipe-linked issue number with a brief note on the overlap. If nothing matched in the bulk search, omit the → line entirely — leave the bullet with severity, category, summary, and date only. Do not add any placeholder text.
 
+To reconstruct the full historical list, read these sources **before** composing this reply:
+1. `/Users/nehaeglund/.openclaw/workspace/nightly-results/customer-feedback/slack-report-*.txt` — parse all `❌` bullets from previous reports (severity, category, summary, date)
+2. `/Users/nehaeglund/.openclaw/workspace/nightly-results/customer-feedback/supplements/processed/*.md` — any supplement items that were classified as untracked
+3. This run's `FEEDBACK_ITEMS` — add any new untracked items from the current window
+
+Deduplicate by summary (exact or near-identical wording). Do not include items that were resolved or tracked in a later run (cross-check against `✅` and `🔧` bullets in the same report files). The final list is the union of all sources, minus resolved/tracked items.
+
 **Thread reply 3** — Feedback poll about this report:
 The poll questions from Step 7b, posted here instead of as a separate thread. Heading: *📊 Quick feedback on this week's report — takes 10 seconds 👆*
 
