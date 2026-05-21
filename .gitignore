@@ -1,6 +1,7 @@
-# Secrets — never commit
+# Secrets and internal config — never commit
 config/slack-tokens.json
 config/slack-webhooks.json
+config/contributor-names.json
 
 # Runtime artifacts
 state/
@@ -19,6 +20,9 @@ claude-github-demo/
 fast/
 nightly/
 powerful/
+
+# Packaged skill bundles (source-of-truth is the skills/<name>/ folders)
+*.skill
 
 # Temporary files
 /tmp/
