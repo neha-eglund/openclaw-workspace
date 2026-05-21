@@ -238,55 +238,120 @@ Use only the full name everywhere in the report — Team Spotlights, Key Deliver
 
 Output `MEDIA:<chart path>` first, then the report in markdown format using the template below.
 
-### 8. Post to Slack — 4 messages (60 seconds apart)
+### 8. Post to Slack — 1 main message + 3 thread replies
 
-Post FOUR messages to #paycontrol-reports sequentially using a single Python script. Do NOT use background shell processes (`&`) — they are killed when the session ends and messages silently disappear.
+Post a short summary to the channel, then reply in the thread with full detail. Use `chat.postMessage` with the bot token — do NOT use the webhook (webhooks cannot post to threads).
 
 ```python
-import json, urllib.request, time
+import json, urllib.request
 
-webhook = json.load(open('/Users/nehaeglund/.openclaw/workspace/config/slack-webhooks.json'))['paycontrol-reports']
+config = json.load(open('/Users/nehaeglund/.openclaw/workspace/config/slack-tokens.json'))
+token = config['bot_token']
+# Set DRY_RUN = True to skip Slack posting entirely — output appears in webchat only
+DRY_RUN = False
+channel = config['paycontrol_reports_channel']
 
-def post(text):
-    payload = json.dumps({'text': text}).encode()
-    req = urllib.request.Request(webhook, data=payload, headers={'Content-Type': 'application/json'})
-    urllib.request.urlopen(req)
+if DRY_RUN:
+    print("DRY RUN — Slack posting skipped. Full report output above in webchat.")
+    raise SystemExit(0)
 
-post(msg1)
-time.sleep(60)
-post(msg2)
-time.sleep(60)
-post(msg3)
-time.sleep(60)
-post(msg4)
+def post(text, thread_ts=None):
+    payload = {'channel': channel, 'text': text}
+    if thread_ts:
+        payload['thread_ts'] = thread_ts
+    data = json.dumps(payload).encode()
+    req = urllib.request.Request(
+        'https://slack.com/api/chat.postMessage',
+        data=data,
+        headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {token}'}
+    )
+    resp = json.loads(urllib.request.urlopen(req).read())
+    if not resp.get('ok'):
+        raise Exception(f"Slack error: {resp.get('error')}")
+    return resp['ts']
+
+ts = post(main_message)
+post(thread_reply_1, thread_ts=ts)  # week-over-week
+post(thread_reply_2, thread_ts=ts)  # stale + action items + contributors
+post(thread_reply_3, thread_ts=ts)  # board flow
+post(thread_reply_4, thread_ts=ts)  # PR tracking
+post(thread_reply_5, thread_ts=ts)  # poll
 ```
 
-**Message 1 (immediate)** — Header snapshot:
-- 🚀 *PayControl Engineering — [date range]*
-- Totals line: PRs merged · issues closed · contributors
-- Repo stats in triple-backtick code block: Repo | PRs | Issues Closed | In Progress | In Review | Security
-
-**Message 2 (+60s)** — Team spotlights + key deliveries:
+**Main message** — what shipped, who delivered it, what needs attention today:
 ```
-━━━━━━━━━━━━━━━━━━━━━━
+🚀 *PayControl Engineering · {date_from}–{date_to}*
+{N} PRs merged · {I} issues closed · {C} contributors · {S} security open
+
 ⭐ *TEAM SPOTLIGHTS*
-One bullet per contributor: *Full Name* + issues closed (only if >0, before PRs) + PRs merged + one short impact sentence.
+• Full Name — issues closed (only if >0) · PRs merged · one short impact sentence
+(one bullet per contributor, ordered by impact)
 
-━━━━━━━━━━━━━━━━━━━━━━
 🔑 *KEY DELIVERIES*
-*── PayControl ──*  *── PayControl-PCI ──*  *── PayControl-GitOps ──*
-Each: emoji + *Bold title* — max 5-6 words. Full Name · <url|Issue #NNN> · <url|PR #NNN>
+*── PayControl ──*
+• emoji *Bold title* — 5-6 word description. Full Name · <url|Issue #NNN> · <url|PR #NNN>
+*── PayControl-PCI ──*
+• ...
+*── PayControl-GitOps ──*
+• ...
+
+🚨 *NEEDS ATTENTION*
+Only 🔴 items: security issues older than 30 days, PRs open longer than 30 days needing a decision.
+One bullet per item. Omit this section entirely if there are no 🔴 items.
+
+_Full stale list, contributor stats, and trends in thread 👇_
 ```
 
-**Message 3 (+120s)** — Stale items:
-- Stale board issues (🔴 >30d, 🟡 >7d): pipe-link + age + column + full name assignee + nudge
-- Stale PRs: pipe-link + age + action needed
-- One-line untracked PR nudge
+**Thread reply 1** — Week-over-week snapshot:
+- Trend table comparing this week vs last week
+- Any notable changes called out in one line
+- Last week's poll results (Q1–3) if a previous poll exists; omit section if no prior data
 
-**Message 4 (+180s)** — Action items + contributors:
-- Action items: priority emoji + pipe-links + description + bold age
-- Contributors: *Full Name* + PRs + issues closed + repos
+**Thread reply 2** — Stale items + action items + contributors:
+- All stale board issues (🔴 >30d, 🟡 >7d): pipe-link + age + column + assignee
+- All stale PRs (🔴 >30d, 🟠 >14d, 🟡 >7d): pipe-link + age + action needed
+- Untracked PR nudge
+- Full action items list: all priorities (🔴 🟠 🟡) with pipe-links + description
+- Contributors table: *Full Name* + PRs (tracked/untracked) + issues closed + repos
 - Total line
+
+**Thread reply 3** — Board flow:
+Heading: *📋 Board flow — PayControlLimited/projects/1*
+Sections in order:
+- *✅ Done this week* — issues moved to Done column this week (number, title, pipe-link)
+- *🔥 P0 in flight* — P0 items currently in In Progress / Review / Test
+- *⏳ Stale in flight (>14 days)* — In Progress / Review / Test items only (not Todo); list with age + column
+- *👀 In Review >3 days* — list each item with age, pipe-link, nudge to action
+- *⏱ Cycle time (PR open → merge, this week)* — write as plain English: "Most PRs shipped in Xd · slowest 10% took Y+ days". Name the slowest PR and why it was larger.
+- *🕐 Time to first review* — write as plain English: "Most PRs got a first review within Xh · X PRs waited more than 24h". Name the PRs that waited longest.
+- *👤 WIP per person* — items currently In Progress / Review / Test per person. Write as a simple list. Flag anyone with >2 in plain language: "X has Y things in flight at once — risk of context switching".
+- *📊 Throughput trend* — PRs merged per week, last 4 weeks with a bar chart. Do not add narrative here — the numbers feed into the Recommendations section.
+- *🔀 Stage transition times* — compute avg time in each active column using `updatedAt` as proxy. Do not add narrative here — feed into Recommendations.
+- *💡 Recommendations* — exactly 2 bullets, grounded in the stale/review data from this week only. Format: `• [action verb] [specific pipe-linked item] — [reason in one clause]`. No generic advice.
+
+**Thread reply 4** — Tracked vs untracked PRs:
+Heading: *🔗 PR tracking — this week's merged PRs*
+Two sections:
+- *❌ Untracked* — merged PRs with no linked issue (show PR pipe-link + author), one bullet per PR
+- A per-person table: Name | Tracked | Untracked | Total — sorted by untracked desc
+Then a one-line summary: `{T} of {N} PRs this week were linked to an issue.`
+
+**Thread reply 5** — Feedback poll:
+Post the poll intro then 4 questions (reactions pre-added to Q1–3, Q4 is free text):
+```
+📊 *Quick feedback on this week's report — takes 10 seconds 👆 React with the number that matches your answer*
+
+*1. Did the report correctly capture what the team shipped this week?*
+1️⃣  Yes, accurate   2️⃣  Some gaps   3️⃣  Something was missed
+
+*2. Were the action items and priorities right?*
+1️⃣  Spot on   2️⃣  Some were wrong   3️⃣  Mostly off
+
+*3. Did the report have good structure?*
+1️⃣  Yes, easy to follow   2️⃣  Could be better   3️⃣  Hard to navigate
+
+*4. Anything missing or you'd like to see differently?* Reply in this thread 👇
+```
 
 
 ---
@@ -462,6 +527,105 @@ _(Up to 5, ranked by severity.)_
 _(Human authors only, ranked by total PRs.)_
 ```
 
-### 8. Done
+### 8. Tone guidelines (mandatory)
+
+Apply these rules to every section of both the webchat and Slack output:
+
+- **Neutral and factual** — no personal opinions, no judgements about individuals or their work
+- **Positive framing** — celebrate what shipped; frame stale items and action items as opportunities to move things forward, not as failures
+- **Stale PRs** — describe as "waiting for review" or "ready for a decision", not "abandoned" or "neglected"
+- **Untracked PRs** — frame as a nudge to link issues before starting work, not a criticism
+- **Security issues** — factual: state age and count; recommend the concrete next step (e.g. "ready to merge", "needs triage")
+- **Team spotlights** — always end with a positive impact sentence; never omit a contributor who shipped something
+- **No external names** — do not mention client names, company names, or personal contacts from outside the team
+
+### 9. Read last week's poll results and post new poll
+
+#### 9a — Read last week's poll reactions
+
+Load the most recent poll file:
+
+```python
+import json, glob, urllib.request, os
+
+POLL_DIR = os.path.expanduser("~/.openclaw/workspace/nightly-results/weekly-summary/polls")
+poll_files = sorted(glob.glob(f"{POLL_DIR}/poll-*.json"))
+last_poll = json.load(open(poll_files[-1])) if poll_files else None
+```
+
+If a previous poll exists, fetch reactions for each question message:
+
+```python
+def get_reactions(ts):
+    url = f"https://slack.com/api/reactions.get?channel={channel}&timestamp={ts}"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+    resp = json.loads(urllib.request.urlopen(req).read())
+    reactions = resp.get("message", {}).get("reactions", [])
+    return {r["name"]: r["count"] - 1 for r in reactions}  # subtract bot's own pre-added reaction
+
+q1_reactions = get_reactions(last_poll["q1_ts"]) if last_poll else None
+q2_reactions = get_reactions(last_poll["q2_ts"]) if last_poll else None
+q3_reactions = get_reactions(last_poll["q3_ts"]) if last_poll else None
+```
+
+Format the results as a thread reply and include it in Thread reply 3 (week-over-week), above the trend table:
+
+```
+📊 *Last week's report feedback*
+_Did the report help you understand what shipped?_
+  1️⃣ {one} · 2️⃣ {two} · 3️⃣ {three}
+
+_Were the flagged action items relevant?_
+  1️⃣ {one} · 2️⃣ {two} · 3️⃣ {three}
+
+_Right amount of detail in main message vs thread?_
+  1️⃣ {one} · 2️⃣ {two} · 3️⃣ {three}
+```
+
+If no previous poll exists, omit this section entirely.
+
+#### 9b — Post this week's poll as a thread reply
+
+Post three separate messages (one per question) as thread replies under the main report message, using the `ts` from the main message. Pre-add reactions so team members just click:
+
+```python
+def post_poll_question(text, thread_ts):
+    ts = post(text, thread_ts=thread_ts)
+    for emoji in ["one", "two", "three"]:
+        payload = json.dumps({"channel": channel, "timestamp": ts, "name": emoji}).encode()
+        req = urllib.request.Request(
+            "https://slack.com/api/reactions.add",
+            data=payload,
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
+        )
+        urllib.request.urlopen(req)
+    return ts
+
+# Post poll header first
+post("📊 *Quick feedback on this week's report — takes 10 seconds* 👆 React with the number that matches your answer", thread_ts=main_ts)
+
+q1_ts = post_poll_question(
+    "*1. Did the report help you understand what the team shipped?*\n1️⃣  Yes, clear picture\n2️⃣  Partially\n3️⃣  Not really",
+    thread_ts=main_ts
+)
+q2_ts = post_poll_question(
+    "*2. Were the flagged action items (stale PRs, security) relevant?*\n1️⃣  Yes, all relevant\n2️⃣  Some were off\n3️⃣  Not useful",
+    thread_ts=main_ts
+)
+q3_ts = post_poll_question(
+    "*3. Was the right amount of detail in the main message vs thread?*\n1️⃣  Right balance\n2️⃣  More in main message\n3️⃣  Less in main message",
+    thread_ts=main_ts
+)
+```
+
+Save the poll ts values:
+
+```python
+os.makedirs(POLL_DIR, exist_ok=True)
+json.dump({"date": TODAY, "q1_ts": q1_ts, "q2_ts": q2_ts, "q3_ts": q3_ts},
+          open(f"{POLL_DIR}/poll-{TODAY}.json", "w"), indent=2)
+```
+
+### 10. Done
 
 Print: "Delivered weekly dashboard for 3 repos (PayControl: N PRs, PCI: N PRs, GitOps: N PRs) — posted to webchat and Slack #paycontrol-reports (2 messages)."

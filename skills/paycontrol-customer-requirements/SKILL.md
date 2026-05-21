@@ -570,43 +570,50 @@ import json, os, glob, time
 SNAPSHOT_DIR = os.path.expanduser('~/.openclaw/workspace/nightly-results/customer-feedback/snapshots')
 os.makedirs(SNAPSHOT_DIR, exist_ok=True)
 
-since_date = open('/tmp/feedback_since_date.txt').read().strip()
 today = time.strftime('%Y-%m-%d')
 
-# Count items by category and severity from FEEDBACK_ITEMS
-by_category = {}
-by_severity = {'🔴 Blocking': 0, '🟡 High': 0, '🔵 Normal': 0}
-resolved = tracked = untracked = 0
+# Snapshots are CUMULATIVE — load previous snapshot and add this run's items on top.
+# This means window_from always stays at the channel start (2026-03-10).
+SNAPSHOT_DIR = os.path.expanduser('~/.openclaw/workspace/nightly-results/customer-feedback/snapshots')
+prev_snapshots = sorted(glob.glob(f'{SNAPSHOT_DIR}/snapshot-*.json'))
+last_snapshot = json.load(open(prev_snapshots[-1])) if prev_snapshots else None
+
+# Count THIS run's new items from FEEDBACK_ITEMS
+new_by_category = {}
+new_by_severity = {'🔴 Blocking': 0, '🟡 High': 0, '🔵 Normal': 0}
+new_resolved = new_tracked = new_untracked = 0
 for item in FEEDBACK_ITEMS:
     cat = item['category']
-    by_category[cat] = by_category.get(cat, 0) + 1
+    new_by_category[cat] = new_by_category.get(cat, 0) + 1
     sev = item['severity']
-    if sev in by_severity:
-        by_severity[sev] += 1
+    if sev in new_by_severity:
+        new_by_severity[sev] += 1
     if item['status'].startswith('✅'):
-        resolved += 1
+        new_resolved += 1
     elif item['status'].startswith('🔧'):
-        tracked += 1
+        new_tracked += 1
     else:
-        untracked += 1
+        new_untracked += 1
+
+# Merge with previous cumulative totals
+prev = last_snapshot or {}
+cum_by_category = dict(prev.get('by_category', {}))
+for cat, count in new_by_category.items():
+    cum_by_category[cat] = cum_by_category.get(cat, 0) + count
 
 this_snapshot = {
     'date': today,
-    'window_from': since_date,
+    'window_from': prev.get('window_from', '2026-03-10'),
     'window_to': today,
-    'total': len(FEEDBACK_ITEMS),
-    'resolved': resolved,
-    'tracked': tracked,
-    'untracked': untracked,
-    'blocking': by_severity.get('🔴 Blocking', 0),
-    'high': by_severity.get('🟡 High', 0),
-    'normal': by_severity.get('🔵 Normal', 0),
-    'by_category': by_category
+    'total': prev.get('total', 0) + len(FEEDBACK_ITEMS),
+    'resolved': prev.get('resolved', 0) + new_resolved,
+    'tracked': prev.get('tracked', 0) + new_tracked,
+    'untracked': prev.get('untracked', 0) + new_untracked,
+    'blocking': prev.get('blocking', 0) + new_by_severity.get('🔴 Blocking', 0),
+    'high': prev.get('high', 0) + new_by_severity.get('🟡 High', 0),
+    'normal': prev.get('normal', 0) + new_by_severity.get('🔵 Normal', 0),
+    'by_category': cum_by_category
 }
-
-# Load last week's snapshot for deltas
-prev_snapshots = sorted(glob.glob(f'{SNAPSHOT_DIR}/snapshot-*.json'))
-last_snapshot = json.load(open(prev_snapshots[-1])) if prev_snapshots else None
 
 # Save this run
 with open(f'{SNAPSHOT_DIR}/snapshot-{today}.json', 'w') as f:
@@ -630,7 +637,7 @@ print(f'Snapshot saved  |  Report window: {since_date} -> {today}')
 - Zero = `no change`
 - No prior snapshot = `(no prior data)`
 
-Add a `*[ ~ ] Week-over-Week*` section to both the webchat and Slack report (after the main report, before any footer):
+The week-over-week table goes into **Thread reply 1 only** — not appended to the main message:
 
 ```
 *[ ~ ]  Week-over-Week · <prev_date> → <today>*
@@ -649,7 +656,7 @@ _(No prior data — trend will appear from next run)_ ← use only if no previou
 For each open question (items with no GitHub issue), list one bullet with:
 - severity emoji + category + summary + date
 - If a possible match was found via bulk semantic matching: → _(possible match: <url|#NNN> STATE — one-line reason)_
-- If no match found: → _(no match found)_
+- If nothing matched: omit the → line entirely — leave the bullet with just the severity, category, summary, and date
 Use Slack pipe-link format for all issue links: <https://github.com/.../issues/NNN|#NNN>
 
 ### Step 5c — Handle file attachments (mandatory)
@@ -674,23 +681,146 @@ Check `/Users/nehaeglund/.openclaw/workspace/nightly-results/customer-feedback/s
 
 ### Step 6 — Post to Slack #paycontrol-reports
 
-Post the same full structured report (built in Step 5) to Slack via webhook. Do not produce a condensed digest — the full report with all sections (✅ Resolved, 🔧 Tracked, ❌ Not tracked, ⚠️ Needs triage) is posted directly.
+Post a short summary to the channel, then reply in the thread with full detail. Use `chat.postMessage` with the bot token — do NOT use the webhook (webhooks cannot post to threads).
 
-Send via webhook:
-
-```bash
-python3 -c "
+```python
 import json, urllib.request
-msg = '''... (slack message string) ...'''
-payload = json.dumps({'text': msg}).encode()
-req = urllib.request.Request(
-    open('/dev/stdin').read().strip() if False else '$WEBHOOK',
-    data=payload,
-    headers={'Content-Type': 'application/json'}
+
+config = json.load(open('/Users/nehaeglund/.openclaw/workspace/config/slack-tokens.json'))
+token = config['bot_token']
+# Set DRY_RUN = True to skip Slack posting entirely — output appears in webchat only
+DRY_RUN = False
+channel = config['paycontrol_reports_channel']
+
+if DRY_RUN:
+    print("DRY RUN — Slack posting skipped. Full report output above in webchat.")
+    raise SystemExit(0)
+
+def post(text, thread_ts=None):
+    payload = {'channel': channel, 'text': text}
+    if thread_ts:
+        payload['thread_ts'] = thread_ts
+    data = json.dumps(payload).encode()
+    req = urllib.request.Request(
+        'https://slack.com/api/chat.postMessage',
+        data=data,
+        headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {token}'}
+    )
+    resp = json.loads(urllib.request.urlopen(req).read())
+    if not resp.get('ok'):
+        raise Exception(f"Slack error: {resp.get('error')}")
+    return resp['ts']
+
+ts = post(main_message)
+post(thread_reply_1, thread_ts=ts)
+post(thread_reply_2, thread_ts=ts)
+```
+
+**Main message** — new items from this run's window only (not cumulative):
+```
+📋 *PayControl · Customer Feedback · {since_date}–{today}*
+{N} new items this week · {T} tracked · {U} untracked · {R} resolved
+```
+Then item sections for THIS RUN's items only, in order, all headings bold:
+- *✅ Resolved* · *🔧 Tracked* · *❌ Not tracked — no issue, no PR ({U})* · *⚠️ Needs triage*
+- One bullet per item with Question/Opportunity lines for untracked items
+If there are no new items this window, post: `_No new feedback this week._`
+
+**Thread reply 1** — Week-over-week table only (cumulative, all time):
+Heading: *📊 Week-over-week · {prev_date} → {today}*
+The comparison table and nothing else.
+
+**Thread reply 2** — Open questions with possible GitHub matches (cumulative — all untracked items, not just this week's):
+Heading: *🔍 Open questions — possible GitHub matches (manual verification needed)*
+One bullet per untracked item across the full history. If a possible GitHub match exists, show it as a pipe-linked issue number with a brief note on the overlap. If nothing matched in the bulk search, omit the → line entirely — leave the bullet with severity, category, summary, and date only. Do not add any placeholder text.
+
+**Thread reply 3** — Feedback poll about this report:
+The poll questions from Step 7b, posted here instead of as a separate thread. Heading: *📊 Quick feedback on this week's report — takes 10 seconds 👆*
+
+### Step 7 — Read last week's poll results and post new poll
+
+#### 7a — Read last week's poll reactions
+
+```python
+import json, glob, urllib.request, os
+
+POLL_DIR = os.path.expanduser("~/.openclaw/workspace/nightly-results/customer-feedback/polls")
+poll_files = sorted(glob.glob(f"{POLL_DIR}/poll-*.json"))
+last_poll = json.load(open(poll_files[-1])) if poll_files else None
+
+def get_reactions(ts):
+    url = f"https://slack.com/api/reactions.get?channel={channel}&timestamp={ts}"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+    resp = json.loads(urllib.request.urlopen(req).read())
+    reactions = resp.get("message", {}).get("reactions", [])
+    return {r["name"]: r["count"] - 1 for r in reactions}  # subtract bot's own pre-added reaction
+
+q1_reactions = get_reactions(last_poll["q1_ts"]) if last_poll else None
+q2_reactions = get_reactions(last_poll["q2_ts"]) if last_poll else None
+q3_reactions = get_reactions(last_poll["q3_ts"]) if last_poll else None
+```
+
+If a previous poll exists, include results at the top of Thread reply 1 (week-over-week):
+
+```
+📊 *Last week's report feedback*
+_Did the report correctly capture what customers are asking for?_
+  1️⃣ {one} · 2️⃣ {two} · 3️⃣ {three}
+
+_Were the linked GitHub issues the right ones?_
+  1️⃣ {one} · 2️⃣ {two} · 3️⃣ {three}
+
+_Did the report have good structure?_
+  1️⃣ {one} · 2️⃣ {two} · 3️⃣ {three}
+```
+Free-text replies (q4) are not surfaced automatically — the team reads them directly in Slack.
+
+If no previous poll exists, omit this section entirely.
+
+#### 7b — Post this week's poll as thread replies
+
+```python
+config = json.load(open('/Users/nehaeglund/.openclaw/workspace/config/slack-tokens.json'))
+token = config['bot_token']
+channel = config['paycontrol_reports_channel']
+
+def post_poll_question(text, thread_ts):
+    ts = post(text, thread_ts=thread_ts)
+    for emoji in ["one", "two", "three"]:
+        payload = json.dumps({"channel": channel, "timestamp": ts, "name": emoji}).encode()
+        req = urllib.request.Request(
+            "https://slack.com/api/reactions.add",
+            data=payload,
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
+        )
+        urllib.request.urlopen(req)
+    return ts
+
+# Thread 3 — poll (this is thread_reply_3, not a separate top-level message)
+post("📊 *Quick feedback on this week's report — takes 10 seconds* 👆 React with the number that matches your answer", thread_ts=main_ts)
+
+q1_ts = post_poll_question(
+    "*1. Did the report correctly capture what customers are asking for?*\n1️⃣  Yes, accurate\n2️⃣  Some gaps\n3️⃣  Something was missed",
+    thread_ts=main_ts
 )
-urllib.request.urlopen(req)
-print('Slack message sent')
-"
+q2_ts = post_poll_question(
+    "*2. Were the linked GitHub issues the right ones?*\n1️⃣  Spot on\n2️⃣  Some were wrong\n3️⃣  Mostly off",
+    thread_ts=main_ts
+)
+q3_ts = post_poll_question(
+    "*3. Did the report have good structure?*\n1️⃣  Yes, easy to follow\n2️⃣  Could be better\n3️⃣  Hard to navigate",
+    thread_ts=main_ts
+)
+
+# Free-text prompt — no reactions added, just invites thread replies
+post(
+    "*4. Anything missing or you'd like to see differently?* Reply in this thread 👇",
+    thread_ts=main_ts
+)
+
+os.makedirs(POLL_DIR, exist_ok=True)
+json.dump({"date": TODAY, "q1_ts": q1_ts, "q2_ts": q2_ts, "q3_ts": q3_ts},
+          open(f"{POLL_DIR}/poll-{TODAY}.json", "w"), indent=2)
 ```
 
 ---
