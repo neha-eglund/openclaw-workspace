@@ -716,22 +716,54 @@ post(thread_reply_1, thread_ts=ts)
 post(thread_reply_2, thread_ts=ts)
 ```
 
+Each message and thread reply must start with a divider line for visual separation:
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
 **Main message** — new items from this run's window only (not cumulative):
 ```
 📋 *PayControl · Customer Feedback · {since_date}–{today}*
 {N} new items this week · {T} tracked · {U} untracked · {R} resolved
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ *Resolved*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+(items or "(none this run)")
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔧 *Tracked*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+(items or "(none this run)")
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+❌ *Not tracked — no issue, no PR ({U})*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+(items with Question/Opportunity lines)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ *Needs triage*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+(triage lines)
 ```
-Then item sections for THIS RUN's items only, in order, all headings bold:
-- *✅ Resolved* · *🔧 Tracked* · *❌ Not tracked — no issue, no PR ({U})* · *⚠️ Needs triage*
-- One bullet per item with Question/Opportunity lines for untracked items
 If there are no new items this window, post: `_No new feedback this week._`
+Omit any section (including its dividers) that has no items.
 
 **Thread reply 1** — Week-over-week table only (cumulative, all time):
-Heading: *📊 Week-over-week · {prev_date} → {today}*
-The comparison table and nothing else.
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 *Week-over-week · {prev_date} → {today}*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+(comparison table)
+```
 
 **Thread reply 2** — Open questions with possible GitHub matches (cumulative — all untracked items, not just this week's):
-Heading: *🔍 Open questions — possible GitHub matches (manual verification needed)*
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔍 *Open questions — possible GitHub matches (manual verification needed)*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+(one bullet per untracked item)
+```
 One bullet per untracked item across the full history. If a possible GitHub match exists, show it as a pipe-linked issue number with a brief note on the overlap. If nothing matched in the bulk search, omit the → line entirely — leave the bullet with severity, category, summary, and date only. Do not add any placeholder text.
 
 To reconstruct the full historical list, read these sources **before** composing this reply:
@@ -740,95 +772,6 @@ To reconstruct the full historical list, read these sources **before** composing
 3. This run's `FEEDBACK_ITEMS` — add any new untracked items from the current window
 
 Deduplicate by summary (exact or near-identical wording). Do not include items that were resolved or tracked in a later run (cross-check against `✅` and `🔧` bullets in the same report files). The final list is the union of all sources, minus resolved/tracked items.
-
-**Thread reply 3** — Feedback poll about this report:
-The poll questions from Step 7b, posted here instead of as a separate thread. Heading: *📊 Quick feedback on this week's report — takes 10 seconds 👆*
-
-### Step 7 — Read last week's poll results and post new poll
-
-#### 7a — Read last week's poll reactions
-
-```python
-import json, glob, urllib.request, os
-
-POLL_DIR = os.path.expanduser("~/.openclaw/workspace/nightly-results/customer-feedback/polls")
-poll_files = sorted(glob.glob(f"{POLL_DIR}/poll-*.json"))
-last_poll = json.load(open(poll_files[-1])) if poll_files else None
-
-def get_reactions(ts):
-    url = f"https://slack.com/api/reactions.get?channel={channel}&timestamp={ts}"
-    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
-    resp = json.loads(urllib.request.urlopen(req).read())
-    reactions = resp.get("message", {}).get("reactions", [])
-    return {r["name"]: r["count"] - 1 for r in reactions}  # subtract bot's own pre-added reaction
-
-q1_reactions = get_reactions(last_poll["q1_ts"]) if last_poll else None
-q2_reactions = get_reactions(last_poll["q2_ts"]) if last_poll else None
-q3_reactions = get_reactions(last_poll["q3_ts"]) if last_poll else None
-```
-
-If a previous poll exists, include results at the top of Thread reply 1 (week-over-week):
-
-```
-📊 *Last week's report feedback*
-_Did the report correctly capture what customers are asking for?_
-  1️⃣ {one} · 2️⃣ {two} · 3️⃣ {three}
-
-_Were the linked GitHub issues the right ones?_
-  1️⃣ {one} · 2️⃣ {two} · 3️⃣ {three}
-
-_Did the report have good structure?_
-  1️⃣ {one} · 2️⃣ {two} · 3️⃣ {three}
-```
-Free-text replies (q4) are not surfaced automatically — the team reads them directly in Slack.
-
-If no previous poll exists, omit this section entirely.
-
-#### 7b — Post this week's poll as thread replies
-
-```python
-config = json.load(open('/Users/nehaeglund/.openclaw/workspace/config/slack-tokens.json'))
-token = config['reports_bot_token']
-channel = config['paycontrol_reports_channel']
-
-def post_poll_question(text, thread_ts):
-    ts = post(text, thread_ts=thread_ts)
-    for emoji in ["one", "two", "three"]:
-        payload = json.dumps({"channel": channel, "timestamp": ts, "name": emoji}).encode()
-        req = urllib.request.Request(
-            "https://slack.com/api/reactions.add",
-            data=payload,
-            headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
-        )
-        urllib.request.urlopen(req)
-    return ts
-
-# Thread 3 — poll (this is thread_reply_3, not a separate top-level message)
-post("📊 *Quick feedback on this week's report — takes 10 seconds* 👆 React with the number that matches your answer", thread_ts=main_ts)
-
-q1_ts = post_poll_question(
-    "*1. Did the report correctly capture what customers are asking for?*\n1️⃣  Yes, accurate\n2️⃣  Some gaps\n3️⃣  Something was missed",
-    thread_ts=main_ts
-)
-q2_ts = post_poll_question(
-    "*2. Were the linked GitHub issues the right ones?*\n1️⃣  Spot on\n2️⃣  Some were wrong\n3️⃣  Mostly off",
-    thread_ts=main_ts
-)
-q3_ts = post_poll_question(
-    "*3. Did the report have good structure?*\n1️⃣  Yes, easy to follow\n2️⃣  Could be better\n3️⃣  Hard to navigate",
-    thread_ts=main_ts
-)
-
-# Free-text prompt — no reactions added, just invites thread replies
-post(
-    "*4. Anything missing or you'd like to see differently?* Reply in this thread 👇",
-    thread_ts=main_ts
-)
-
-os.makedirs(POLL_DIR, exist_ok=True)
-json.dump({"date": TODAY, "q1_ts": q1_ts, "q2_ts": q2_ts, "q3_ts": q3_ts},
-          open(f"{POLL_DIR}/poll-{TODAY}.json", "w"), indent=2)
-```
 
 ---
 

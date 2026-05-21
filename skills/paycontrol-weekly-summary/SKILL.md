@@ -275,8 +275,13 @@ post(thread_reply_1, thread_ts=ts)  # week-over-week
 post(thread_reply_2, thread_ts=ts)  # stale + action items + contributors
 post(thread_reply_3, thread_ts=ts)  # board flow
 post(thread_reply_4, thread_ts=ts)  # PR tracking
-post(thread_reply_5, thread_ts=ts)  # poll
 ```
+
+Each message and thread reply must start with a prominent divider for visual separation:
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+Place a divider immediately before each major section heading within a message (e.g. before ⭐ TEAM SPOTLIGHTS, 🔑 KEY DELIVERIES, 🚨 NEEDS ATTENTION, and at the top of each thread reply before its heading).
 
 **Main message** — what shipped, who delivered it, what needs attention today:
 ```
@@ -305,7 +310,6 @@ _Full stale list, contributor stats, and trends in thread 👇_
 **Thread reply 1** — Week-over-week snapshot:
 - Trend table comparing this week vs last week
 - Any notable changes called out in one line
-- Last week's poll results (Q1–3) if a previous poll exists; omit section if no prior data
 
 **Thread reply 2** — Stale items + action items + contributors:
 - All stale board issues (🔴 >30d, 🟡 >7d): pipe-link + age + column + assignee
@@ -335,24 +339,6 @@ Two sections:
 - *❌ Untracked* — merged PRs with no linked issue (show PR pipe-link + author), one bullet per PR
 - A per-person table: Name | Tracked | Untracked | Total — sorted by untracked desc
 Then a one-line summary: `{T} of {N} PRs this week were linked to an issue.`
-
-**Thread reply 5** — Feedback poll:
-Post the poll intro then 4 questions (reactions pre-added to Q1–3, Q4 is free text):
-```
-📊 *Quick feedback on this week's report — takes 10 seconds 👆 React with the number that matches your answer*
-
-*1. Did the report correctly capture what the team shipped this week?*
-1️⃣  Yes, accurate   2️⃣  Some gaps   3️⃣  Something was missed
-
-*2. Were the action items and priorities right?*
-1️⃣  Spot on   2️⃣  Some were wrong   3️⃣  Mostly off
-
-*3. Did the report have good structure?*
-1️⃣  Yes, easy to follow   2️⃣  Could be better   3️⃣  Hard to navigate
-
-*4. Anything missing or you'd like to see differently?* Reply in this thread 👇
-```
-
 
 ---
 
@@ -539,93 +525,6 @@ Apply these rules to every section of both the webchat and Slack output:
 - **Team spotlights** — always end with a positive impact sentence; never omit a contributor who shipped something
 - **No external names** — do not mention client names, company names, or personal contacts from outside the team
 
-### 9. Read last week's poll results and post new poll
-
-#### 9a — Read last week's poll reactions
-
-Load the most recent poll file:
-
-```python
-import json, glob, urllib.request, os
-
-POLL_DIR = os.path.expanduser("~/.openclaw/workspace/nightly-results/weekly-summary/polls")
-poll_files = sorted(glob.glob(f"{POLL_DIR}/poll-*.json"))
-last_poll = json.load(open(poll_files[-1])) if poll_files else None
-```
-
-If a previous poll exists, fetch reactions for each question message:
-
-```python
-def get_reactions(ts):
-    url = f"https://slack.com/api/reactions.get?channel={channel}&timestamp={ts}"
-    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
-    resp = json.loads(urllib.request.urlopen(req).read())
-    reactions = resp.get("message", {}).get("reactions", [])
-    return {r["name"]: r["count"] - 1 for r in reactions}  # subtract bot's own pre-added reaction
-
-q1_reactions = get_reactions(last_poll["q1_ts"]) if last_poll else None
-q2_reactions = get_reactions(last_poll["q2_ts"]) if last_poll else None
-q3_reactions = get_reactions(last_poll["q3_ts"]) if last_poll else None
-```
-
-Format the results as a thread reply and include it in Thread reply 3 (week-over-week), above the trend table:
-
-```
-📊 *Last week's report feedback*
-_Did the report help you understand what shipped?_
-  1️⃣ {one} · 2️⃣ {two} · 3️⃣ {three}
-
-_Were the flagged action items relevant?_
-  1️⃣ {one} · 2️⃣ {two} · 3️⃣ {three}
-
-_Right amount of detail in main message vs thread?_
-  1️⃣ {one} · 2️⃣ {two} · 3️⃣ {three}
-```
-
-If no previous poll exists, omit this section entirely.
-
-#### 9b — Post this week's poll as a thread reply
-
-Post three separate messages (one per question) as thread replies under the main report message, using the `ts` from the main message. Pre-add reactions so team members just click:
-
-```python
-def post_poll_question(text, thread_ts):
-    ts = post(text, thread_ts=thread_ts)
-    for emoji in ["one", "two", "three"]:
-        payload = json.dumps({"channel": channel, "timestamp": ts, "name": emoji}).encode()
-        req = urllib.request.Request(
-            "https://slack.com/api/reactions.add",
-            data=payload,
-            headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
-        )
-        urllib.request.urlopen(req)
-    return ts
-
-# Post poll header first
-post("📊 *Quick feedback on this week's report — takes 10 seconds* 👆 React with the number that matches your answer", thread_ts=main_ts)
-
-q1_ts = post_poll_question(
-    "*1. Did the report help you understand what the team shipped?*\n1️⃣  Yes, clear picture\n2️⃣  Partially\n3️⃣  Not really",
-    thread_ts=main_ts
-)
-q2_ts = post_poll_question(
-    "*2. Were the flagged action items (stale PRs, security) relevant?*\n1️⃣  Yes, all relevant\n2️⃣  Some were off\n3️⃣  Not useful",
-    thread_ts=main_ts
-)
-q3_ts = post_poll_question(
-    "*3. Was the right amount of detail in the main message vs thread?*\n1️⃣  Right balance\n2️⃣  More in main message\n3️⃣  Less in main message",
-    thread_ts=main_ts
-)
-```
-
-Save the poll ts values:
-
-```python
-os.makedirs(POLL_DIR, exist_ok=True)
-json.dump({"date": TODAY, "q1_ts": q1_ts, "q2_ts": q2_ts, "q3_ts": q3_ts},
-          open(f"{POLL_DIR}/poll-{TODAY}.json", "w"), indent=2)
-```
-
-### 10. Done
+### 9. Done
 
 Print: "Delivered weekly dashboard for 3 repos (PayControl: N PRs, PCI: N PRs, GitOps: N PRs) — posted to webchat and Slack #paycontrol-reports (2 messages)."
