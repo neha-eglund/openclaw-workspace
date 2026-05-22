@@ -7,7 +7,6 @@ Run:
     python3 skills/paycontrol-customer-requirements/test_integration.py
 """
 import json, sys, urllib.request
-from pathlib import Path
 
 from helpers import Runner, TOKENS, NAMES, SNAPSHOTS_CF
 

@@ -7,7 +7,6 @@ Run:
     python3 skills/paycontrol-weekly-summary/test_integration.py
 """
 import json, subprocess, sys, urllib.request
-from pathlib import Path
 
 from helpers import Runner, TOKENS, NAMES, SNAPSHOTS_WS, get_gh_token
 
