@@ -18,7 +18,12 @@ Window: since last run (snapshot-driven); first run fetches all messages from ch
 export SLACK_TOKEN=xoxb-...
 export GH_TOKEN=ghp_...
 export DRY_RUN=true
+
+# Claude
 claude -p "Read this SKILL.md and execute all instructions in it exactly as written."
+
+# Codex
+codex "Read this SKILL.md and execute all instructions in it exactly as written."
 ```
 
 ---
