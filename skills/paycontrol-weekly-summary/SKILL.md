@@ -13,18 +13,6 @@ Output: cross-repo dashboard + per-repo mini cards, posted to webchat and Slack
 
 ## Usage
 
-**Dry run** (no Slack posting — output to stdout):
-```bash
-./bin/run-summary
-./bin/run-summary | less -R
-```
-
-**With a different LLM:**
-```bash
-AGENT=codex ./bin/run-summary
-```
-
-**Manual** (set env vars yourself):
 ```bash
 export GH_TOKEN=ghp_...
 export DRY_RUN=true
