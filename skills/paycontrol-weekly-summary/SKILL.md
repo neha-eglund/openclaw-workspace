@@ -17,6 +17,8 @@ Output: cross-repo dashboard + per-repo mini cards, posted to webchat and Slack
 
 ```bash
 export GH_TOKEN=$(python3 -c "import json; print(json.load(open('/Users/nehaeglund/.openclaw/openclaw.json'))['env']['vars']['GH_TOKEN'])")
+export REPORTS_CHANNEL_ID=$(python3 -c "import json; print(json.load(open('/Users/nehaeglund/.openclaw/workspace/config/slack-tokens.json'))['paycontrol_reports_channel'])")
+# Optional: export DRY_RUN=true  — set this to skip Slack posting and print to stdout only
 ```
 
 ### Step 2 — Fetch all data
@@ -115,9 +117,12 @@ Build the four messages, write them to `/tmp/ws_report.json`:
 
 Then post:
 ```bash
-python3 ~/.openclaw/workspace/skills/paycontrol-weekly-summary/scripts/post_slack.py
-# Dry run: python3 .../post_slack.py --dry-run
+DRY_RUN_FLAG=""
+[ "${DRY_RUN}" = "true" ] && DRY_RUN_FLAG="--dry-run"
+python3 ~/.openclaw/workspace/skills/paycontrol-weekly-summary/scripts/post_slack.py $DRY_RUN_FLAG
 ```
+
+If `DRY_RUN=true`, the script prints all messages to stdout and exits without posting to Slack.
 
 ### Step 8 — Done
 

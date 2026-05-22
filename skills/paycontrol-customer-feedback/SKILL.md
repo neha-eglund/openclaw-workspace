@@ -43,6 +43,7 @@ export SLACK_TOKEN=$(python3 -c "import json; print(json.load(open('/Users/nehae
 export GH_TOKEN=$(python3 -c "import json; print(json.load(open('/Users/nehaeglund/.openclaw/openclaw.json'))['env']['vars']['GH_TOKEN'])")
 export SLACK_CHANNEL_ID=$(python3 -c "import json; print(json.load(open('/Users/nehaeglund/.openclaw/workspace/config/slack-tokens.json'))['paycontrol_feedback_channel'])")
 export REPORTS_CHANNEL_ID=$(python3 -c "import json; print(json.load(open('/Users/nehaeglund/.openclaw/workspace/config/slack-tokens.json'))['paycontrol_reports_channel'])")
+# Optional: export DRY_RUN=true  — set this to skip Slack posting and print to stdout only
 ```
 
 Use `$SLACK_CHANNEL_ID` for all reads from the feedback channel and `$REPORTS_CHANNEL_ID` for all posts to the reports channel. Never hardcode channel IDs in API calls.
@@ -180,9 +181,12 @@ See **Report Format** section below for exact structure of each message.
 ### Step 9 — Post to Slack
 
 ```bash
-python3 ~/.openclaw/workspace/skills/paycontrol-customer-feedback/scripts/post_slack.py
-# Dry run: python3 .../post_slack.py --dry-run
+DRY_RUN_FLAG=""
+[ "${DRY_RUN}" = "true" ] && DRY_RUN_FLAG="--dry-run"
+python3 ~/.openclaw/workspace/skills/paycontrol-customer-feedback/scripts/post_slack.py $DRY_RUN_FLAG
 ```
+
+If `DRY_RUN=true`, the script prints all messages to stdout and exits without posting to Slack.
 
 ---
 
