@@ -18,11 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import config as cfg
 
-REPOS = [
-    ("PayControlLimited/PayControl",        "PayControl"),
-    ("PayControlLimited/PayControl-PCI",    "PayControl-PCI"),
-    ("PayControlLimited/PayControl-GitOps", "PayControl-GitOps"),
-]
+REPOS = cfg.REPOS
 
 BODY_LIMIT_ISSUE = 400
 BODY_LIMIT_PR    = 300

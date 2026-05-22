@@ -59,6 +59,13 @@ GH_TOKEN          = os.environ.get("GH_TOKEN")          or _load_gh_token()
 REPORTS_BOT_TOKEN = os.environ.get("REPORTS_BOT_TOKEN") or _tokens.get("reports_bot_token")
 SLACK_CHANNEL_ID  = os.environ.get("SLACK_CHANNEL_ID")  or _tokens.get("paycontrol_reports_channel", "C0ATQEBLT89")
 
+# ── Repositories ────────────────────────────────────────────────────────────
+
+REPOS = os.environ.get(
+    "REPOS",
+    "PayControlLimited/PayControl,PayControlLimited/PayControl-PCI,PayControlLimited/PayControl-GitOps"
+).split(",")
+
 # ── Other config files ───────────────────────────────────────────────────────
 
 CONTRIBUTOR_NAMES_FILE = WORKSPACE_DIR / "config" / "contributor-names.json"

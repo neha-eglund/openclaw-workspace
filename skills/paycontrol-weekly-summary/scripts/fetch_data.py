@@ -18,11 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import config as cfg
 
-REPOS = [
-    "PayControlLimited/PayControl",
-    "PayControlLimited/PayControl-PCI",
-    "PayControlLimited/PayControl-GitOps",
-]
+REPOS = cfg.REPOS
 
 BOT_SIGNALS     = ["bot", "flux", "dependabot", "noreply", "github-actions"]
 COMMIT_PREFIXES = ["Update", "Merge", "Bump", "chore(deps)"]
