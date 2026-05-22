@@ -1,13 +1,13 @@
 ---
 name: paycontrol-weekly-summary
-description: "Generates a weekly engineering dashboard for PayControlLimited/PayControl, PayControlLimited/PayControl-PCI, and PayControlLimited/PayControl-GitOps covering the rolling last 7 days. Cross-repo snapshot header with per-repo mini cards. Produces a chart PNG and posts to webchat + Slack #paycontrol-reports."
+description: "Generates a weekly engineering dashboard for PayControlLimited/PayControl, PayControlLimited/PayControl-PCI, and PayControlLimited/PayControl-GitOps covering the rolling last 7 days. Cross-repo snapshot header with per-repo mini cards, posted to webchat + Slack #paycontrol-reports."
 ---
 
 # PayControl Weekly Summary
 
 Repositories: `PayControlLimited/PayControl`, `PayControlLimited/PayControl-PCI`, `PayControlLimited/PayControl-GitOps`
 Window: rolling last 7 days, ending now
-Output: cross-repo dashboard + per-repo mini cards, chart PNG, posted to webchat and Slack
+Output: cross-repo dashboard + per-repo mini cards, posted to webchat and Slack
 
 ---
 
@@ -80,23 +80,7 @@ python3 ~/.openclaw/workspace/skills/paycontrol-weekly-summary/scripts/snapshot.
 Reads: `/tmp/ws_stats.json`, `/tmp/ws_window.json`
 Writes: `nightly-results/weekly-summary/snapshot-{today}.json`, `/tmp/ws_deltas.json`
 
-### Step 5 — Generate the chart
-
-```bash
-SKILL_DIR="$HOME/.openclaw/workspace/skills/paycontrol-weekly-summary"
-OUT_DIR="$HOME/.openclaw/workspace/nightly-results/weekly-summary"
-TODAY=$(python3 -c "from datetime import datetime,timezone; print(datetime.now(timezone.utc).strftime('%Y-%m-%d'))")
-OUT="$OUT_DIR/paycontrol-weekly-$TODAY.png"
-
-python3 "$SKILL_DIR/scripts/chart.py" "$OUT" "$TODAY" \
-  <OPEN> <TTM_MEDIAN> \
-  '<issues_by_area_json>' \
-  '[<u1>,<14d>,<1-4d>,<4-24h>,<1h>]'
-```
-
-If matplotlib is missing: `pip3 install --quiet --user matplotlib`
-
-### Step 6 — Resolve contributor full names (mandatory)
+### Step 5 — Resolve contributor full names (mandatory)
 
 Before generating any report output, resolve every GitHub login to a full name.
 
@@ -112,11 +96,11 @@ gh api /users/<login> --jq '.name'
 
 Use only full names everywhere — never show a login or @handle.
 
-### Step 7 — Post to webchat
+### Step 6 — Post to webchat
 
-Output `MEDIA:<chart path>` first, then the full report using the webchat template below.
+Output the full report using the webchat template below.
 
-### Step 8 — Build report and post to Slack
+### Step 7 — Build report and post to Slack
 
 Build the four messages, write them to `/tmp/ws_report.json`:
 ```json
@@ -135,7 +119,7 @@ python3 ~/.openclaw/workspace/skills/paycontrol-weekly-summary/scripts/post_slac
 # Dry run: python3 .../post_slack.py --dry-run
 ```
 
-### Step 9 — Done
+### Step 8 — Done
 
 Print: `Delivered weekly dashboard for 3 repos (PayControl: N PRs, PCI: N PRs, GitOps: N PRs) — posted to webchat and Slack #paycontrol-reports.`
 
@@ -146,8 +130,6 @@ Print: `Delivered weekly dashboard for 3 repos (PayControl: N PRs, PCI: N PRs, G
 ### Webchat
 
 ```
-MEDIA:<chart path>
-
 # PayControl Engineering — Weekly Dashboard · <Mon Day>–<Day>, <Year>
 
 ## Cross-Repo Snapshot
