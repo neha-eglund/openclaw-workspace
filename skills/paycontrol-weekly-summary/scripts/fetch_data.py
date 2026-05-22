@@ -73,10 +73,6 @@ def parse_board(raw):
 def fetch_repo(repo):
     key = repo.replace("/", "_")
 
-    # All 5 calls for this repo run in parallel
-    def _gh_json(label, *args):
-        return label, json.loads(gh(*args) or "[]")
-
     queries = {
         "closed_issues": (
             "issue", "list", "--repo", repo, "--state", "closed",

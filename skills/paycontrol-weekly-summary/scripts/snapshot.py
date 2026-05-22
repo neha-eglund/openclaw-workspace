@@ -18,8 +18,11 @@ window = json.loads(Path(cfg.TMP_WINDOW).read_text())
 TODAY  = window['today']
 stats  = json.loads(Path(cfg.TMP_STATS).read_text())
 
-# Load previous snapshot
-snapshots = sorted(cfg.SNAPSHOT_DIR.glob("snapshot-*.json"))
+# Load previous snapshot — exclude today's file to avoid same-day re-run returning all-zero deltas
+snapshots = sorted(
+    p for p in cfg.SNAPSHOT_DIR.glob("snapshot-*.json")
+    if p.stem != f"snapshot-{TODAY}"
+)
 last = json.loads(snapshots[-1].read_text()) if snapshots else None
 
 # Save this week's snapshot
@@ -30,7 +33,7 @@ print(f"Snapshot saved: snapshot-{TODAY}.json")
 
 def delta(key, section, good_direction="down"):
     new_val = stats.get(section, {}).get(key, 0)
-    old_val = (last or {}).get(section, {}).get(key, 0) if last else None
+    old_val = last.get(section, {}).get(key) if last else None
     if old_val is None:
         return new_val, "(no prior data)"
     d = new_val - old_val
