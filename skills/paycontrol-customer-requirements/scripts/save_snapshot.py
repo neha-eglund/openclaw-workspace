@@ -13,27 +13,30 @@ Outputs:
 Usage:
     python3 scripts/save_snapshot.py
 """
-import json, os, glob, time
+import json, glob, time, sys
 from pathlib import Path
-import sys; sys.path.insert(0, str(Path(__file__).parent))
+
+sys.path.insert(0, str(Path(__file__).parent))
 import config as cfg
 
-SNAPSHOT_DIR = str(cfg.SNAPSHOT_DIR)
-LAST_RUN_PATH = cfg.LAST_RUN_FILE
+RESOLVED_PREFIX    = "✅"
+TRACKED_PREFIX     = "🔧"
+SEVERITY_BLOCKING  = "🔴 Blocking"
+SEVERITY_HIGH      = "🟡 High"
+SEVERITY_NORMAL    = "🔵 Normal"
 
-window = json.load(open(cfg.TMP_WINDOW))
-today = window['today']
+window     = json.loads(Path(cfg.TMP_WINDOW).read_text())
+today      = window['today']
 since_date = window['since_date']
-
-items = json.load(open(cfg.TMP_ITEMS))
+items      = json.loads(Path(cfg.TMP_ITEMS).read_text())
 
 # Load previous cumulative snapshot
-prev_snapshots = sorted(glob.glob(f"{SNAPSHOT_DIR}/snapshot-*.json"))
-prev = json.load(open(prev_snapshots[-1])) if prev_snapshots else {}
+prev_snapshots = sorted(cfg.SNAPSHOT_DIR.glob("snapshot-*.json"))
+prev = json.loads(prev_snapshots[-1].read_text()) if prev_snapshots else {}
 
 # Count this run's items
 new_resolved = new_tracked = new_untracked = 0
-new_by_severity = {"🔴 Blocking": 0, "🟡 High": 0, "🔵 Normal": 0}
+new_by_severity = {SEVERITY_BLOCKING: 0, SEVERITY_HIGH: 0, SEVERITY_NORMAL: 0}
 new_by_category = {}
 
 for item in items:
@@ -43,37 +46,37 @@ for item in items:
     cat = item.get("category", "Other")
     new_by_category[cat] = new_by_category.get(cat, 0) + 1
     status = item.get("status", "")
-    if status.startswith("✅"):
+    if status.startswith(RESOLVED_PREFIX):
         new_resolved += 1
-    elif status.startswith("🔧"):
+    elif status.startswith(TRACKED_PREFIX):
         new_tracked += 1
     else:
         new_untracked += 1
 
-# Merge with cumulative totals
-cum_by_category = dict(prev.get("by_category", {}))
+# Merge category counts with cumulative totals
+cum_by_category = {**prev.get("by_category", {})}
 for cat, count in new_by_category.items():
     cum_by_category[cat] = cum_by_category.get(cat, 0) + count
 
 this_snapshot = {
-    "date":         today,
-    "window_from":  prev.get("window_from", "2026-03-10"),
-    "window_to":    today,
-    "total":        prev.get("total", 0)    + len(items),
-    "resolved":     prev.get("resolved", 0) + new_resolved,
-    "tracked":      prev.get("tracked", 0)  + new_tracked,
-    "untracked":    prev.get("untracked", 0) + new_untracked,
-    "blocking":     prev.get("blocking", 0) + new_by_severity.get("🔴 Blocking", 0),
-    "high":         prev.get("high", 0)     + new_by_severity.get("🟡 High", 0),
-    "normal":       prev.get("normal", 0)   + new_by_severity.get("🔵 Normal", 0),
-    "by_category":  cum_by_category,
+    "date":        today,
+    "window_from": prev.get("window_from", since_date),
+    "window_to":   today,
+    "total":       prev.get("total",     0) + len(items),
+    "resolved":    prev.get("resolved",  0) + new_resolved,
+    "tracked":     prev.get("tracked",   0) + new_tracked,
+    "untracked":   prev.get("untracked", 0) + new_untracked,
+    "blocking":    prev.get("blocking",  0) + new_by_severity[SEVERITY_BLOCKING],
+    "high":        prev.get("high",      0) + new_by_severity[SEVERITY_HIGH],
+    "normal":      prev.get("normal",    0) + new_by_severity[SEVERITY_NORMAL],
+    "by_category": cum_by_category,
 }
 
-with open(f"{SNAPSHOT_DIR}/snapshot-{today}.json", "w") as f:
-    json.dump(this_snapshot, f, indent=2)
+snap_path = cfg.SNAPSHOT_DIR / f"snapshot-{today}.json"
+snap_path.write_text(json.dumps(this_snapshot, indent=2))
 print(f"Snapshot saved: snapshot-{today}.json")
 
-# Compute week-over-week deltas for the report
+
 def fmt_delta(new_val, old_val, good_direction="down"):
     if old_val is None:
         return new_val, "(no prior data)"
@@ -86,22 +89,30 @@ def fmt_delta(new_val, old_val, good_direction="down"):
     flag = "🔴" if is_bad else "✅"
     return new_val, f"{flag} {sign}{d} {arrow}"
 
-deltas = {}
-for key, direction in [("total","up"), ("resolved","up"), ("tracked","up"),
-                        ("untracked","down"), ("blocking","down"), ("high","down")]:
-    deltas[key] = fmt_delta(this_snapshot[key], prev.get(key), direction)
 
-json.dump({"prev_date": prev.get("date"), "deltas": deltas, "snapshot": this_snapshot},
-          open(cfg.TMP_DELTAS, 'w'), indent=2)
+deltas = {
+    key: fmt_delta(this_snapshot[key], prev.get(key), direction)
+    for key, direction in [
+        ("total",     "up"),
+        ("resolved",  "up"),
+        ("tracked",   "up"),
+        ("untracked", "down"),
+        ("blocking",  "down"),
+        ("high",      "down"),
+    ]
+}
 
-# Update last-run.json
-json.dump({
-    "last_ts":    str(time.time()),
-    "last_date":  today,
+Path(cfg.TMP_DELTAS).write_text(
+    json.dumps({"prev_date": prev.get("date"), "deltas": deltas, "snapshot": this_snapshot}, indent=2)
+)
+
+cfg.LAST_RUN_FILE.write_text(json.dumps({
+    "last_ts":     str(time.time()),
+    "last_date":   today,
     "window_from": since_date,
-    "window_to":  today,
+    "window_to":   today,
     "items_found": len(items),
-}, open(LAST_RUN_PATH, 'w'), indent=2)
+}, indent=2))
 
 print(f"last-run.json updated  |  window: {since_date} -> {today}")
 print("save_snapshot.py done.")

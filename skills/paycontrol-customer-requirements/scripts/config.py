@@ -30,8 +30,6 @@ RESULTS_DIR = Path(os.environ.get(
     WORKSPACE_DIR / "nightly-results" / "customer-feedback"
 ))
 
-RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-
 # ── Config files (used as fallback when env vars are not set) ───────────────
 
 _TOKENS_FILE   = WORKSPACE_DIR / "config" / "slack-tokens.json"
@@ -46,18 +44,21 @@ def _load_tokens():
 
 def _load_gh_token():
     if _OPENCLAW_FILE.exists():
-        return json.loads(_OPENCLAW_FILE.read_text())["env"]["vars"]["GH_TOKEN"]
+        try:
+            return json.loads(_OPENCLAW_FILE.read_text())["env"]["vars"]["GH_TOKEN"]
+        except (KeyError, json.JSONDecodeError):
+            pass
     return None
 
 
 # ── Credentials ─────────────────────────────────────────────────────────────
 
-GH_TOKEN = os.environ.get("GH_TOKEN") or _load_gh_token()
-
 _tokens = _load_tokens()
-SLACK_TOKEN       = os.environ.get("SLACK_TOKEN")       or _tokens.get("bot_token")
-REPORTS_BOT_TOKEN = os.environ.get("REPORTS_BOT_TOKEN") or _tokens.get("reports_bot_token")
-SLACK_CHANNEL_ID  = os.environ.get("SLACK_CHANNEL_ID")  or "C0AKQRQ6QDA"
+
+GH_TOKEN           = os.environ.get("GH_TOKEN")           or _load_gh_token()
+SLACK_TOKEN        = os.environ.get("SLACK_TOKEN")        or _tokens.get("bot_token")
+REPORTS_BOT_TOKEN  = os.environ.get("REPORTS_BOT_TOKEN")  or _tokens.get("reports_bot_token")
+SLACK_CHANNEL_ID   = os.environ.get("SLACK_CHANNEL_ID")   or "C0AKQRQ6QDA"
 REPORTS_CHANNEL_ID = os.environ.get("REPORTS_CHANNEL_ID") or _tokens.get("paycontrol_reports_channel", "C0ATQEBLT89")
 
 # ── Other config files ───────────────────────────────────────────────────────
@@ -66,14 +67,13 @@ CONTRIBUTOR_NAMES_FILE = WORKSPACE_DIR / "config" / "contributor-names.json"
 
 # ── Snapshot and output paths ────────────────────────────────────────────────
 
-SNAPSHOT_DIR     = RESULTS_DIR / "snapshots"
-LAST_RUN_FILE    = RESULTS_DIR / "last-run.json"
-SUPPLEMENTS_DIR  = RESULTS_DIR / "supplements"
-REPORTS_DIR      = RESULTS_DIR  # slack-report-*.txt saved here
+SNAPSHOT_DIR    = RESULTS_DIR / "snapshots"
+LAST_RUN_FILE   = RESULTS_DIR / "last-run.json"
+SUPPLEMENTS_DIR = RESULTS_DIR / "supplements"
+REPORTS_DIR     = RESULTS_DIR
 
-SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
-SUPPLEMENTS_DIR.mkdir(parents=True, exist_ok=True)
-(SUPPLEMENTS_DIR / "processed").mkdir(parents=True, exist_ok=True)
+for _d in [SNAPSHOT_DIR, SUPPLEMENTS_DIR, SUPPLEMENTS_DIR / "processed"]:
+    _d.mkdir(parents=True, exist_ok=True)
 
 # ── Temp files (ephemeral, always /tmp) ─────────────────────────────────────
 
