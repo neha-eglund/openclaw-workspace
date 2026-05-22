@@ -1,15 +1,14 @@
-import json, os, re, subprocess
+import json, os, re
 from pathlib import Path
 
-BASE = Path(__file__).parent.parent
-SKILL_FEEDBACK  = BASE / "skills/paycontrol-customer-requirements/SKILL.md"
-SKILL_SUMMARY   = BASE / "skills/paycontrol-weekly-summary/SKILL.md"
-SCRIPTS_FEEDBACK = BASE / "skills/paycontrol-customer-requirements/scripts"
-SCRIPTS_SUMMARY  = BASE / "skills/paycontrol-weekly-summary/scripts"
+BASE = Path(__file__).parent.parent.parent
+
+SKILL_FEEDBACK   = Path(__file__).parent / "SKILL.md"
+SCRIPTS_FEEDBACK = Path(__file__).parent / "scripts"
+
 TOKENS         = BASE / "config/slack-tokens.json"
 NAMES          = BASE / "config/contributor-names.json"
 SNAPSHOTS_CF   = BASE / "nightly-results/customer-feedback/snapshots"
-SNAPSHOTS_WS   = BASE / "nightly-results/weekly-summary"
 
 PASS = "\033[92m✅\033[0m"
 FAIL = "\033[91m❌\033[0m"
@@ -21,7 +20,6 @@ def skill_contains(skill_path, pattern, flags=0):
 
 
 def skill_or_scripts_contains(skill_path, scripts_dir, pattern, flags=0):
-    """Search SKILL.md and all .py files in the scripts/ directory."""
     texts = [skill_path.read_text()]
     if scripts_dir.exists():
         texts += [f.read_text() for f in scripts_dir.glob("*.py")]

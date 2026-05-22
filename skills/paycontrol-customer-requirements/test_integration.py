@@ -9,7 +9,6 @@ Run:
 import json, sys, urllib.request
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "tests"))
 from helpers import Runner, TOKENS, NAMES, SNAPSHOTS_CF
 
 

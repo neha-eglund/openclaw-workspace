@@ -6,7 +6,6 @@ Run:
 """
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "tests"))
 from helpers import Runner, SKILL_FEEDBACK, SCRIPTS_FEEDBACK, skill_contains, skill_or_scripts_contains
 
 def main():
