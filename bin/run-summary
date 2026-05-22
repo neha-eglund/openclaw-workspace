@@ -1,0 +1,37 @@
+#!/bin/bash
+# Dry-run the paycontrol-weekly-summary skill locally.
+# Loads credentials automatically — no manual env var exports needed.
+# Output is printed to stdout; pipe to less if you want to page through it:
+#   ./bin/run-summary | less -R
+#
+# Usage:
+#   ./bin/run-summary
+#   ./bin/run-summary | less -R
+
+set -e
+
+WORKSPACE="$(cd "$(dirname "$0")/.." && pwd)"
+OPENCLAW_CFG="$HOME/.openclaw/openclaw.json"
+SKILL="$WORKSPACE/skills/paycontrol-weekly-summary/SKILL.md"
+
+# Load GitHub token
+if [ -z "$GH_TOKEN" ]; then
+  GH_TOKEN=$(python3 -c "import json; print(json.load(open('$OPENCLAW_CFG'))['env']['vars']['GH_TOKEN'])" 2>/dev/null || true)
+fi
+if [ -z "$GH_TOKEN" ]; then
+  echo "ERROR: GH_TOKEN not found. Export it or add to $OPENCLAW_CFG" >&2
+  exit 1
+fi
+
+echo "▶ Running paycontrol-weekly-summary (DRY RUN — Slack posting skipped)" >&2
+echo "  Skill: $SKILL" >&2
+echo "" >&2
+
+export GH_TOKEN DRY_RUN=true
+
+claude -p "Read the skill file at $SKILL and execute all instructions in it exactly as written.
+
+Credentials:
+- GH_TOKEN=$GH_TOKEN
+
+Set GH_TOKEN as an env var before running. DRY_RUN is already set to true — do not post to Slack."

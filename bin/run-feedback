@@ -1,0 +1,46 @@
+#!/bin/bash
+# Dry-run the paycontrol-customer-feedback skill locally.
+# Loads credentials automatically — no manual env var exports needed.
+# Output is printed to stdout; pipe to less if you want to page through it:
+#   ./bin/run-feedback | less -R
+#
+# Usage:
+#   ./bin/run-feedback
+#   ./bin/run-feedback | less -R
+
+set -e
+
+WORKSPACE="$(cd "$(dirname "$0")/.." && pwd)"
+CONFIG="$WORKSPACE/config/slack-tokens.json"
+OPENCLAW_CFG="$HOME/.openclaw/openclaw.json"
+SKILL="$WORKSPACE/skills/paycontrol-customer-feedback/SKILL.md"
+
+# Load Slack token
+SLACK_TOKEN=$(python3 -c "import json; print(json.load(open('$CONFIG'))['bot_token'])")
+if [ -z "$SLACK_TOKEN" ] || [ "$SLACK_TOKEN" = "xoxb-YOUR-BOT-TOKEN-HERE" ]; then
+  echo "ERROR: bot_token not set in $CONFIG" >&2
+  exit 1
+fi
+
+# Load GitHub token
+if [ -z "$GH_TOKEN" ]; then
+  GH_TOKEN=$(python3 -c "import json; print(json.load(open('$OPENCLAW_CFG'))['env']['vars']['GH_TOKEN'])" 2>/dev/null || true)
+fi
+if [ -z "$GH_TOKEN" ]; then
+  echo "ERROR: GH_TOKEN not found. Export it or add to $OPENCLAW_CFG" >&2
+  exit 1
+fi
+
+echo "▶ Running paycontrol-customer-feedback (DRY RUN — Slack posting skipped)" >&2
+echo "  Skill: $SKILL" >&2
+echo "" >&2
+
+export SLACK_TOKEN GH_TOKEN DRY_RUN=true
+
+claude -p "Read the skill file at $SKILL and execute all instructions in it exactly as written.
+
+Credentials:
+- SLACK_TOKEN=$SLACK_TOKEN
+- GH_TOKEN=$GH_TOKEN
+
+Set both as env vars before running. DRY_RUN is already set to true — do not post to Slack."
