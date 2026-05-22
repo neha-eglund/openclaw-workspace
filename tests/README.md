@@ -5,11 +5,9 @@ Tests for the two PayControl cron skills: `paycontrol-customer-requirements` and
 ## How to run
 
 ```bash
-# Static checks — customer feedback skill (fast, no internet)
-python3 tests/test_feedback.py
-
-# Static checks — weekly summary skill (fast, no internet)
-python3 tests/test_summary.py
+# Per-skill static checks — run these when you edit a skill
+python3 skills/paycontrol-customer-requirements/tests.py
+python3 skills/paycontrol-weekly-summary/tests.py
 
 # Integration checks — Slack + GitHub APIs (requires internet)
 python3 tests/test_integration.py
@@ -23,13 +21,15 @@ python3 tests/test_evals.py --file tests/logs/2026-05-21-11-58.log --skill feedb
 
 ## Test files
 
+Static checks live inside each skill directory so they can be committed and updated independently:
+
 | File | What it tests | Speed |
 |---|---|---|
-| `test_feedback.py` | Customer feedback skill — static checks | Instant |
-| `test_summary.py` | Weekly summary skill — static checks | Instant |
-| `test_integration.py` | Slack + GitHub API connectivity + config | ~5s |
-| `test_evals.py` | LLM-as-judge quality scoring of a saved report | ~30s |
-| `helpers.py` | Shared utilities — not a test file, imported by the others | — |
+| `skills/paycontrol-customer-requirements/tests.py` | Customer feedback skill — static checks | Instant |
+| `skills/paycontrol-weekly-summary/tests.py` | Weekly summary skill — static checks | Instant |
+| `tests/test_integration.py` | Slack + GitHub API connectivity + config | ~5s |
+| `tests/test_evals.py` | LLM-as-judge quality scoring of a saved report | ~30s |
+| `tests/helpers.py` | Shared utilities — imported by all test files | — |
 
 ---
 

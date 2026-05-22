@@ -2,9 +2,11 @@
 Static checks for the paycontrol-customer-requirements skill.
 
 Run:
-    python3 tests/test_feedback.py
+    python3 skills/paycontrol-customer-requirements/tests.py
 """
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "tests"))
 from helpers import Runner, SKILL_FEEDBACK, skill_contains
 
 def main():

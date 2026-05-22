@@ -2,9 +2,11 @@
 Static checks for the paycontrol-weekly-summary skill.
 
 Run:
-    python3 tests/test_summary.py
+    python3 skills/paycontrol-weekly-summary/tests.py
 """
 import re, sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "tests"))
 from helpers import Runner, SKILL_SUMMARY, skill_contains
 
 def _name_resolution_before_webchat():
