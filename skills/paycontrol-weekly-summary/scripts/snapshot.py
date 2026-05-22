@@ -30,7 +30,7 @@ print(f"Snapshot saved: snapshot-{TODAY}.json")
 
 def delta(key, section, good_direction="down"):
     new_val = stats.get(section, {}).get(key, 0)
-    old_val = (last or {}).get(section, {}).get(key) if last else None
+    old_val = (last or {}).get(section, {}).get(key, 0) if last else None
     if old_val is None:
         return new_val, "(no prior data)"
     d = new_val - old_val

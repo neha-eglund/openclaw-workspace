@@ -59,6 +59,6 @@ def post(text, thread_ts=None):
 
 ts = post(main_message)
 print(f"Main message posted: {ts}")
-post(thread_reply_1, thread_ts=ts)
-post(thread_reply_2, thread_ts=ts)
+for reply in [thread_reply_1, thread_reply_2]:
+    post(reply, thread_ts=ts)
 print("Both thread replies posted.")

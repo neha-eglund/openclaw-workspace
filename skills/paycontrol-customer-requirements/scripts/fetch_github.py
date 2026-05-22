@@ -39,9 +39,65 @@ def gh(*args):
     return result.stdout
 
 
-# --- Project board ---
-print("Fetching project board...")
-board_raw = gh("api", "graphql", "-f", """query={
+def parse_board(raw):
+    if not raw:
+        return []
+    try:
+        nodes = json.loads(raw)["data"]["organization"]["projectV2"]["items"]["nodes"]
+    except (KeyError, json.JSONDecodeError) as e:
+        print(f"Warning: failed to parse board response: {e}", file=sys.stderr)
+        return []
+    items = []
+    for item in nodes:
+        content = item.get("content") or {}
+        if not content:
+            continue
+        status = next(
+            (fv["name"] for fv in item["fieldValues"]["nodes"]
+             if fv and fv.get("field", {}).get("name") == "Status"),
+            "Unknown"
+        )
+        items.append({
+            "number": content.get("number"),
+            "title":  content.get("title", ""),
+            "state":  content.get("state", ""),
+            "url":    content.get("url", ""),
+            "body":   (content.get("body") or "")[:BODY_LIMIT_ISSUE],
+            "status": status,
+        })
+    return items
+
+
+def fetch_repo(repo, repo_name):
+    # Issues and PRs fetched in parallel
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        issues_f = pool.submit(gh, "issue", "list", "--repo", repo, "--state", "all",
+                               "--limit", "500",
+                               "--json", "number,title,state,url,body,labels,assignees")
+        prs_f    = pool.submit(gh, "pr", "list", "--repo", repo, "--state", "all",
+                               "--limit", "200",
+                               "--json", "number,title,body,state,url,closingIssuesReferences")
+        issues = json.loads(issues_f.result() or "[]")
+        prs    = json.loads(prs_f.result() or "[]")
+
+    for i in issues:
+        i["body"] = (i.get("body") or "")[:BODY_LIMIT_ISSUE]
+        i["repo"] = repo_name
+    for pr in prs:
+        pr["repo"] = repo_name
+        pr["body"] = (pr.get("body") or "")[:BODY_LIMIT_PR]
+
+    print(f"  {repo_name}: {len(issues)} issues, {len(prs)} PRs")
+    return issues, prs
+
+
+# Fetch board and all repos in parallel
+print("Fetching board + all repos in parallel...")
+all_issues = []
+all_prs    = []
+
+with ThreadPoolExecutor(max_workers=len(REPOS) + 1) as pool:
+    board_future = pool.submit(gh, "api", "graphql", "-f", """query={
   organization(login: "PayControlLimited") {
     projectV2(number: 1) {
       items(first: 200) {
@@ -62,73 +118,23 @@ board_raw = gh("api", "graphql", "-f", """query={
     }
   }
 }""")
+    repo_futures = {pool.submit(fetch_repo, repo, name): name for repo, name in REPOS}
 
-board = []
-if board_raw:
-    try:
-        nodes = json.loads(board_raw)["data"]["organization"]["projectV2"]["items"]["nodes"]
-        for item in nodes:
-            content = item.get("content") or {}
-            if not content:
-                continue
-            status = next(
-                (fv["name"] for fv in item["fieldValues"]["nodes"]
-                 if fv and fv.get("field", {}).get("name") == "Status"),
-                "Unknown"
-            )
-            board.append({
-                "number": content.get("number"),
-                "title":  content.get("title", ""),
-                "state":  content.get("state", ""),
-                "url":    content.get("url", ""),
-                "body":   (content.get("body") or "")[:BODY_LIMIT_ISSUE],
-                "status": status,
-            })
-    except (KeyError, json.JSONDecodeError) as e:
-        print(f"Warning: failed to parse board response: {e}", file=sys.stderr)
-
-Path(cfg.TMP_BOARD).write_text(json.dumps(board, indent=2))
-print(f"Board: {len(board)} items")
-
-
-# --- Fetch issues + PRs for all repos in parallel ---
-
-def fetch_repo(repo, repo_name):
-    issues_raw = gh("issue", "list", "--repo", repo, "--state", "all", "--limit", "500",
-                    "--json", "number,title,state,url,body,labels,assignees")
-    issues = json.loads(issues_raw or "[]")
-    for i in issues:
-        i["body"] = (i.get("body") or "")[:BODY_LIMIT_ISSUE]
-        i["repo"] = repo_name
-
-    prs_raw = gh("pr", "list", "--repo", repo, "--state", "all", "--limit", "200",
-                 "--json", "number,title,body,state,url,closingIssuesReferences")
-    prs = json.loads(prs_raw or "[]")
-    for pr in prs:
-        pr["repo"] = repo_name
-        pr["body"] = (pr.get("body") or "")[:BODY_LIMIT_PR]
-
-    print(f"  {repo_name}: {len(issues)} issues, {len(prs)} PRs")
-    return issues, prs
-
-
-all_issues = []
-all_prs = []
-
-print("Fetching issues + PRs for all repos in parallel...")
-with ThreadPoolExecutor(max_workers=len(REPOS)) as pool:
-    futures = {pool.submit(fetch_repo, repo, name): name for repo, name in REPOS}
-    for future in as_completed(futures):
+    board = parse_board(board_future.result())
+    for future in as_completed(repo_futures):
         issues, prs = future.result()
         all_issues.extend(issues)
         all_prs.extend(prs)
+
+Path(cfg.TMP_BOARD).write_text(json.dumps(board, indent=2))
+print(f"Board: {len(board)} items")
 
 Path(cfg.TMP_ALL_ISSUES).write_text(json.dumps(all_issues, indent=2))
 print(f"Total issues: {len(all_issues)}")
 
 # Build issue -> PR index using a set for O(1) deduplication
 issue_to_prs = {}
-seen = {}  # issue_num -> set of (pr_number, repo)
+seen = {}
 
 for pr in all_prs:
     refs = set(str(i["number"]) for i in pr.get("closingIssuesReferences", []))
