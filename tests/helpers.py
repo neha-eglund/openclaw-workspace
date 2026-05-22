@@ -2,8 +2,10 @@ import json, os, re, subprocess
 from pathlib import Path
 
 BASE = Path(__file__).parent.parent
-SKILL_FEEDBACK = BASE / "skills/paycontrol-customer-requirements/SKILL.md"
-SKILL_SUMMARY  = BASE / "skills/paycontrol-weekly-summary/SKILL.md"
+SKILL_FEEDBACK  = BASE / "skills/paycontrol-customer-requirements/SKILL.md"
+SKILL_SUMMARY   = BASE / "skills/paycontrol-weekly-summary/SKILL.md"
+SCRIPTS_FEEDBACK = BASE / "skills/paycontrol-customer-requirements/scripts"
+SCRIPTS_SUMMARY  = BASE / "skills/paycontrol-weekly-summary/scripts"
 TOKENS         = BASE / "config/slack-tokens.json"
 NAMES          = BASE / "config/contributor-names.json"
 SNAPSHOTS_CF   = BASE / "nightly-results/customer-feedback/snapshots"
@@ -16,6 +18,14 @@ SKIP = "\033[93m⏭\033[0m"
 
 def skill_contains(skill_path, pattern, flags=0):
     return bool(re.search(pattern, skill_path.read_text(), flags))
+
+
+def skill_or_scripts_contains(skill_path, scripts_dir, pattern, flags=0):
+    """Search SKILL.md and all .py files in the scripts/ directory."""
+    texts = [skill_path.read_text()]
+    if scripts_dir.exists():
+        texts += [f.read_text() for f in scripts_dir.glob("*.py")]
+    return any(bool(re.search(pattern, t, flags)) for t in texts)
 
 
 def get_gh_token():

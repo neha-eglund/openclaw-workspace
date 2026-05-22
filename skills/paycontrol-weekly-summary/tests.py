@@ -7,7 +7,7 @@ Run:
 import re, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "tests"))
-from helpers import Runner, SKILL_SUMMARY, skill_contains
+from helpers import Runner, SKILL_SUMMARY, SCRIPTS_SUMMARY, skill_contains, skill_or_scripts_contains
 
 def _name_resolution_before_webchat():
     text = SKILL_SUMMARY.read_text()
@@ -22,14 +22,17 @@ def main():
     D = re.DOTALL
     I = re.IGNORECASE
 
+    def anywhere(pattern, flags=0):
+        return skill_or_scripts_contains(s, SCRIPTS_SUMMARY, pattern, flags)
+
     r.check("1.  Posts via chat.postMessage (not webhook)",
-            skill_contains(s, r"chat\.postMessage"))
+            anywhere(r"chat\.postMessage"))
 
     r.check("2.  Threading — thread_ts used for replies",
-            skill_contains(s, r"thread_ts"))
+            anywhere(r"thread_ts"))
 
     r.check("3.  Channel loaded from paycontrol_reports_channel config",
-            skill_contains(s, r"paycontrol_reports_channel"))
+            anywhere(r"paycontrol_reports_channel"))
 
     r.check("4.  Main message includes team spotlights",
             skill_contains(s, r"TEAM SPOTLIGHTS.*Main message|Main message.*TEAM SPOTLIGHTS", I | D))
@@ -92,12 +95,12 @@ def main():
             skill_contains(s, r"gh api /users.*\.name|gh api.*users.*jq.*name"))
 
     r.check("24. Posting uses threading, not background shell processes",
-            skill_contains(s, r"thread_ts") and
-            not skill_contains(s, r"post_msg\d+\.py.*&|\(sleep \d+.*python3.*\)\s*&"))
+            anywhere(r"thread_ts") and
+            not anywhere(r"post_msg\d+\.py.*&|\(sleep \d+.*python3.*\)\s*&"))
 
     r.check("25. Date window uses Python datetime (not date -v-7d)",
-            skill_contains(s, r"datetime.*timedelta|timedelta.*datetime") and
-            not skill_contains(s, r"date -v-7d"))
+            anywhere(r"datetime.*timedelta|timedelta.*datetime") and
+            not anywhere(r"date -v-7d"))
 
     r.check("26. Tone: neutral and positive framing",
             skill_contains(s, r"[Nn]eutral and factual|positive framing", I))
@@ -106,7 +109,7 @@ def main():
             skill_contains(s, r"waiting for.*decision|ready for a decision", I))
 
     r.check("28. DRY_RUN flag raises SystemExit before Slack posting",
-            skill_contains(s, r"DRY_RUN") and skill_contains(s, r"raise SystemExit|SystemExit\(0\)"))
+            anywhere(r"DRY_RUN") and anywhere(r"raise SystemExit|SystemExit\(0\)"))
 
     sys.exit(0 if r.summary() else 1)
 

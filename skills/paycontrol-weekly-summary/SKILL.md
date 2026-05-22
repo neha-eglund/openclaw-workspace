@@ -5,362 +5,145 @@ description: "Generates a weekly engineering dashboard for PayControlLimited/Pay
 
 # PayControl Weekly Summary
 
-Repositories:
-- `PayControlLimited/PayControl`
-- `PayControlLimited/PayControl-PCI`
-- `PayControlLimited/PayControl-GitOps`
-
+Repositories: `PayControlLimited/PayControl`, `PayControlLimited/PayControl-PCI`, `PayControlLimited/PayControl-GitOps`
 Window: rolling last 7 days, ending now
 Output: cross-repo dashboard + per-repo mini cards, chart PNG, posted to webchat and Slack
 
+---
+
 ## Workflow
 
-### 1. Set token and compute the window
+### Step 1 — Set credentials
 
 ```bash
 export GH_TOKEN=$(python3 -c "import json; print(json.load(open('/Users/nehaeglund/.openclaw/openclaw.json'))['env']['vars']['GH_TOKEN'])")
 ```
 
-```python
-from datetime import datetime, timezone, timedelta
-now = datetime.now(timezone.utc)
-since_dt = now - timedelta(days=7)
-TODAY = now.strftime('%Y-%m-%d')
-SINCE_DATE = since_dt.strftime('%Y-%m-%d')
-SINCE = since_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
-print(f"Window: {SINCE_DATE} -> {TODAY}")
-```
-
-Then export these as shell variables for use in subsequent bash commands:
-```bash
-TODAY=$(python3 -c "from datetime import datetime,timezone; print(datetime.now(timezone.utc).strftime('%Y-%m-%d'))")
-SINCE_DATE=$(python3 -c "from datetime import datetime,timezone,timedelta; print((datetime.now(timezone.utc)-timedelta(days=7)).strftime('%Y-%m-%d'))")
-SINCE=$(python3 -c "from datetime import datetime,timezone,timedelta; print((datetime.now(timezone.utc)-timedelta(days=7)).strftime('%Y-%m-%dT%H:%M:%SZ'))")
-echo "Window: $SINCE_DATE -> $TODAY"
-```
-
-### 2. Pull GitHub project board state
-
-Query `PayControlLimited/projects/1` for in-progress and review items. Required for the mini card "In flight" line.
+### Step 2 — Fetch all data
 
 ```bash
-gh api graphql -f query='
-{
-  organization(login: "PayControlLimited") {
-    projectV2(number: 1) {
-      items(first: 100) {
-        nodes {
-          content {
-            ... on Issue  { number title state }
-            ... on PullRequest { number title state }
-          }
-          fieldValues(first: 10) {
-            nodes {
-              ... on ProjectV2ItemFieldSingleSelectValue {
-                name
-                field { ... on ProjectV2SingleSelectField { name } }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}'
+python3 ~/.openclaw/workspace/skills/paycontrol-weekly-summary/scripts/fetch_data.py
 ```
 
-Group items by Status into: **In Progress / Review**, **Todo / Backlog**, **Done / Shipped**.
+Reads: GitHub project board + issues, PRs, direct commits for all 3 repos.
+Writes: `/tmp/ws_board.json`, `/tmp/ws_window.json`, `/tmp/ws_*_<repo>.json`
 
-If `read:project` scope is missing, skip and note unavailable.
+### Step 3 — Analyse per-repo impact signals
 
-### 3. Pull repository data (run all three repos in parallel)
+Read the fetched data and derive three impact lines per repo. This is agent reasoning — not code.
 
-Run the same query block for each repo, substituting the repo name:
-
-```bash
-REPOS=(PayControlLimited/PayControl PayControlLimited/PayControl-PCI PayControlLimited/PayControl-GitOps)
-
-for REPO in "${REPOS[@]}"; do
-  # Issues closed this week
-  gh issue list --repo $REPO --state closed --limit 100 \
-    --search "closed:>=$SINCE_DATE" \
-    --json number,title,closedAt,author,labels &
-
-  # All open issues (stale detection + security scan)
-  gh issue list --repo $REPO --state open --limit 200 \
-    --json number,title,createdAt,updatedAt,assignees,labels &
-
-  # PRs merged this week
-  gh pr list --repo $REPO --state merged --limit 100 \
-    --search "merged:>=$SINCE_DATE" \
-    --json number,title,createdAt,mergedAt,author,labels,additions,deletions,body &
-
-  # Open PRs
-  gh pr list --repo $REPO --state open --limit 100 \
-    --json number,title,createdAt,author,labels,body &
-done
-wait
-```
-
-### 4. Compute per-repo impact signals
-
-For each repo, derive three impact lines by reading PR bodies/summaries and issue titles — not counting activity, but describing what changed for users, operators, or the system.
-
-**▲ Shipped impact** — What can users or operators do now that they couldn't before? Read PR body "Summary" sections and linked issue titles. Write 1–2 sentences. After each capability, append the issue or PR number(s) that delivered it in parentheses — e.g. "(#1593, #1596)". Use the issue number if the PR references one; fall back to PR number if untracked. Prioritise: user-facing feature > security fix > reliability improvement > infra simplification > devx.
+**▲ Shipped impact** — What can users or operators do now that they couldn't before? Read PR body "Summary" sections and linked issue titles. Write 1–2 sentences. Append issue/PR numbers in parentheses. Use issue number if the PR references one; fall back to PR number if untracked. Priority: user-facing feature > security fix > reliability > infra simplification > devx.
 
 **▼ Risk delta** — What risk opened or closed this week? Count:
 - Security issues newly opened vs closed (net change)
 - SEC_CRITICAL: open security issues >90 days (🔴)
 - SEC_SLA: open security issues >13 days (🟡)
-- Any reverts (signal of instability)
-- New high-severity bugs opened
-Write 1 sentence. Append the most critical issue numbers in parentheses — e.g. "(#598, #599 — 134d)".
+- Any reverts or new high-severity bugs
+Write 1 sentence. Append the most critical issue numbers e.g. "(#598, #599 — 134d)".
 
-**→ System change** — What structural change landed that affects how the system is operated, scaled, or maintained? E.g. infrastructure migrations, dependency upgrades, schema changes, removal of legacy components. Append the issue or PR number(s). 1 sentence or omit if nothing significant.
+**→ System change** — Structural change affecting operations, scaling, or maintenance. 1 sentence or omit.
 
-**Untracked work detection** — surface work that happened outside the normal PR→issue flow:
+**Untracked work detection:**
+- PRs without an issue: merged PRs with no `#NNN` reference in title+body → flag as `(PR#N — no issue)`
+- Direct commits: already identified by `fetch_data.py` in `/tmp/ws_direct_commits_*.json` — show as `⚡ Direct commits` if any exist
 
-- **PRs without an issue**: merged PRs where title+body contain no `#\d{3,}` reference. List them in the ▲ line with `(PR#N — no issue)` so they are visible but clearly flagged as untracked.
-- **Direct commits without a PR**: query commits to main with `parents.length == 1` (not a merge commit). For each, note sha, message, author, date. If any exist, add a `⚡ Direct commits` line under the mini card — these bypassed both issue and PR flow entirely.
-
-```bash
-gh api "/repos/$REPO/commits?sha=main&since=${SINCE}&per_page=100" \
-  --jq '[.[] | select(.parents | length == 1) | {sha: .sha[0:7], message: (.commit.message | split("\n")[0]), author: .commit.author.name, date: .commit.author.date}]'
-```
-
-**Stale column detection** — surface issues stuck in a board column abnormally long:
-
-From the project board data (step 2), for each item in **In Progress** or **Review**, compute days since `updatedAt`. Flag as stale if:
-- In Progress > 14 days with no `updatedAt` activity
-- Review > 7 days with no `updatedAt` activity
-
-Add a `⏳ Stale on board` line under the relevant repo mini card listing each stuck item with its column and age. This catches issues the board shows as active but that haven't moved.
-
-```
-⏳ Stale on board:
-  • #N <title> — In Progress, <N>d — <assignee or unassigned>
-  • #N <title> — Review, <N>d — <assignee>
-```
-
-Also compute for snapshot table:
-- `OPEN` — total open issues
-- `MERGED` — PRs merged in window
-- `SEC_OPEN` — total open security issues
-- `SEC_DELTA` — security issues opened minus closed this week (+ means risk grew)
+**Stale column detection** (from `/tmp/ws_board.json`):
+- In Progress > 14 days → stale
+- Review > 7 days → stale
+Show as `⏳ Stale on board` under the relevant repo section.
 
 **Risk rubric for action items (rank order):**
 1. 🔴 Security issues open >90 days
 2. 🔴 Security SLA breaches (>13 days), unassigned
-3. 🟡 Net security risk grew this week (more opened than closed)
+3. 🟡 Net security risk grew (more opened than closed)
 4. 🟡 Bus-factor: one contributor >40% of merged PRs
 5. 🟡 Stale PR open >30 days with no reviewer
-6. 🟡 Direct commits to main (bypassed PR flow)
-7. 🟡 Revert events (process signal)
+6. 🟡 Direct commits to main
+7. 🟡 Revert events
 8. 🟡 Frozen backlog (>80% of open issues stale >14d)
 
-### 5. Load last week's snapshot and compute trend
-
-Load the most recent previous snapshot (if any) to compute week-over-week deltas.
-
-```python
-import json, os, glob
-from datetime import datetime, timezone
-
-OUT_DIR = os.path.expanduser("~/.openclaw/workspace/nightly-results/weekly-summary")
-os.makedirs(OUT_DIR, exist_ok=True)
-
-# Find last week's snapshot (most recent JSON before today)
-snapshots = sorted(glob.glob(f"{OUT_DIR}/snapshot-*.json"))
-last_snapshot = json.load(open(snapshots[-1])) if snapshots else None
-
-# Build this week's snapshot from computed stats
-this_snapshot = {
-    "date": TODAY,
-    "paycontrol": {
-        "open_issues": OPEN_PC,
-        "merged_prs": MERGED_PC,
-        "sec_open": SEC_OPEN_PC,
-        "sec_critical": SEC_CRITICAL_PC,
-        "stale_issues": STALE_PC,
-        "untracked_prs": UNTRACKED_PC
-    },
-    "pci": {
-        "open_issues": OPEN_PCI,
-        "merged_prs": MERGED_PCI,
-        "sec_open": SEC_OPEN_PCI,
-        "sec_critical": SEC_CRITICAL_PCI,
-        "stale_issues": STALE_PCI,
-        "untracked_prs": UNTRACKED_PCI
-    },
-    "gitops": {
-        "merged_prs": MERGED_GO,
-        "untracked_prs": UNTRACKED_GO,
-        "direct_commits_human": DIRECT_HUMAN_GO
-    }
+After analysis, compute these stats and write `/tmp/ws_stats.json`:
+```json
+{
+  "paycontrol": { "open_issues": N, "merged_prs": N, "sec_open": N, "sec_critical": N, "stale_issues": N, "untracked_prs": N },
+  "pci":        { "open_issues": N, "merged_prs": N, "sec_open": N, "sec_critical": N, "stale_issues": N, "untracked_prs": N },
+  "gitops":     { "merged_prs": N, "untracked_prs": N, "direct_commits_human": N }
 }
-
-# Save this week's snapshot
-with open(f"{OUT_DIR}/snapshot-{TODAY}.json", "w") as f:
-    json.dump(this_snapshot, f, indent=2)
 ```
 
-**Compute deltas** — for each metric, delta = this week - last week. Format as:
-- Positive number: `+N ↑` — use 🔴 if it's a bad signal (sec_open, stale, untracked), ✅ if good (merged_prs)
-- Negative number: `-N ↓` — use ✅ if it's a good signal (sec_open, stale going down), 🔴 if bad (merged_prs dropping sharply)
-- Zero: `no change`
-- No previous snapshot: `(no prior data)`
+### Step 4 — Save snapshot and compute deltas
 
-### 6. Generate the chart
+```bash
+python3 ~/.openclaw/workspace/skills/paycontrol-weekly-summary/scripts/snapshot.py
+```
 
-Chart covers `PayControlLimited/PayControl` only (main repo), using the same parameters as before.
+Reads: `/tmp/ws_stats.json`, `/tmp/ws_window.json`
+Writes: `nightly-results/weekly-summary/snapshot-{today}.json`, `/tmp/ws_deltas.json`
+
+### Step 5 — Generate the chart
 
 ```bash
 SKILL_DIR="$HOME/.openclaw/workspace/skills/paycontrol-weekly-summary"
 OUT_DIR="$HOME/.openclaw/workspace/nightly-results/weekly-summary"
-mkdir -p "$OUT_DIR"
+TODAY=$(python3 -c "from datetime import datetime,timezone; print(datetime.now(timezone.utc).strftime('%Y-%m-%d'))")
 OUT="$OUT_DIR/paycontrol-weekly-$TODAY.png"
 
 python3 "$SKILL_DIR/chart.py" "$OUT" "$TODAY" \
   <OPEN> <TTM_MEDIAN> \
   '<issues_by_area_json>' \
-  '[<u1>,<14>,<424>,<13d>,<o3d>]'
+  '[<u1>,<14d>,<1-4d>,<4-24h>,<1h>]'
 ```
 
-If matplotlib is missing: `pip3 install --quiet --user matplotlib`.
+If matplotlib is missing: `pip3 install --quiet --user matplotlib`
 
-### 6. Resolve contributor full names (mandatory)
+### Step 6 — Resolve contributor full names (mandatory)
 
-Before generating any report output, resolve every GitHub login that appears in the data to the contributor's full name.
-
-Load the names cache first:
+Before generating any report output, resolve every GitHub login to a full name.
 
 ```python
 import json
 names = json.load(open('/Users/nehaeglund/.openclaw/workspace/config/contributor-names.json'))
-# names is a dict: {"alipas": "Apostolis Lipas", ...}
 ```
 
-For any login not in the cache, fall back to the GitHub API and add it to the file:
-
+For any login not in the cache, fall back to the GitHub API and add it:
 ```bash
 gh api /users/<login> --jq '.name'
 ```
 
-Use only the full name everywhere in the report — Team Spotlights, Key Deliveries, Contributors list, stale PR assignees, and action items. Do NOT show the login or @handle anywhere (webchat or Slack).
+Use only full names everywhere — never show a login or @handle.
 
-### 7. Post to webchat
+### Step 7 — Post to webchat
 
-Output `MEDIA:<chart path>` first, then the report in markdown format using the template below.
+Output `MEDIA:<chart path>` first, then the full report using the webchat template below.
 
-### 8. Post to Slack — 1 main message + 3 thread replies
+### Step 8 — Build report and post to Slack
 
-Post a short summary to the channel, then reply in the thread with full detail. Use `chat.postMessage` with the bot token — do NOT use the webhook (webhooks cannot post to threads).
-
-```python
-import json, urllib.request
-
-config = json.load(open('/Users/nehaeglund/.openclaw/workspace/config/slack-tokens.json'))
-token = config['reports_bot_token']
-# Set DRY_RUN = True to skip Slack posting entirely — output appears in webchat only
-DRY_RUN = False
-channel = config['paycontrol_reports_channel']
-
-if DRY_RUN:
-    print("DRY RUN — Slack posting skipped. Full report output above in webchat.")
-    raise SystemExit(0)
-
-def post(text, thread_ts=None):
-    payload = {'channel': channel, 'text': text}
-    if thread_ts:
-        payload['thread_ts'] = thread_ts
-    data = json.dumps(payload).encode()
-    req = urllib.request.Request(
-        'https://slack.com/api/chat.postMessage',
-        data=data,
-        headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {token}'}
-    )
-    resp = json.loads(urllib.request.urlopen(req).read())
-    if not resp.get('ok'):
-        raise Exception(f"Slack error: {resp.get('error')}")
-    return resp['ts']
-
-ts = post(main_message)
-post(thread_reply_1, thread_ts=ts)  # week-over-week
-post(thread_reply_2, thread_ts=ts)  # stale + action items + contributors
-post(thread_reply_3, thread_ts=ts)  # board flow
-post(thread_reply_4, thread_ts=ts)  # PR tracking
+Build the four messages, write them to `/tmp/ws_report.json`:
+```json
+{
+  "main_message":   "...",
+  "thread_reply_1": "...",
+  "thread_reply_2": "...",
+  "thread_reply_3": "...",
+  "thread_reply_4": "..."
+}
 ```
 
-Each message and thread reply must start with a prominent divider for visual separation:
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-Place a divider immediately before each major section heading within a message (e.g. before ⭐ TEAM SPOTLIGHTS, 🔑 KEY DELIVERIES, 🚨 NEEDS ATTENTION, and at the top of each thread reply before its heading).
-
-**Main message** — what shipped, who delivered it, what needs attention today:
-```
-🚀 *PayControl Engineering · {date_from}–{date_to}*
-{N} PRs merged · {I} issues closed · {C} contributors · {S} security open
-
-⭐ *TEAM SPOTLIGHTS*
-• Full Name — issues closed (only if >0) · PRs merged · one short impact sentence
-(one bullet per contributor, ordered by impact)
-
-🔑 *KEY DELIVERIES*
-*── PayControl ──*
-• emoji *Bold title* — 5-6 word description. Full Name · <url|Issue #NNN> · <url|PR #NNN>
-*── PayControl-PCI ──*
-• ...
-*── PayControl-GitOps ──*
-• ...
-
-🚨 *NEEDS ATTENTION*
-Only 🔴 items: security issues older than 30 days, PRs open longer than 30 days needing a decision.
-One bullet per item. Omit this section entirely if there are no 🔴 items.
-
-_Full stale list, contributor stats, and trends in thread 👇_
+Then post:
+```bash
+python3 ~/.openclaw/workspace/skills/paycontrol-weekly-summary/scripts/post_slack.py
+# Dry run: python3 .../post_slack.py --dry-run
 ```
 
-**Thread reply 1** — Week-over-week snapshot:
-- Trend table comparing this week vs last week
-- Any notable changes called out in one line
+### Step 9 — Done
 
-**Thread reply 2** — Stale items + action items + contributors:
-- All stale board issues (🔴 >30d, 🟡 >7d): pipe-link + age + column + assignee
-- All stale PRs (🔴 >30d, 🟠 >14d, 🟡 >7d): pipe-link + age + action needed
-- Untracked PR nudge
-- Full action items list: all priorities (🔴 🟠 🟡) with pipe-links + description
-- Contributors table: *Full Name* + PRs (tracked/untracked) + issues closed + repos
-- Total line
-
-**Thread reply 3** — Board flow:
-Heading: *📋 Board flow — PayControlLimited/projects/1*
-Sections in order:
-- *✅ Done this week* — issues moved to Done column this week (number, title, pipe-link)
-- *🔥 P0 in flight* — P0 items currently in In Progress / Review / Test
-- *⏳ Stale in flight (>14 days)* — In Progress / Review / Test items only (not Todo); list with age + column
-- *👀 In Review >3 days* — list each item with age, pipe-link, nudge to action
-- *⏱ Cycle time (PR open → merge, this week)* — write as plain English: "Most PRs shipped in Xd · slowest 10% took Y+ days". Name the slowest PR and why it was larger.
-- *🕐 Time to first review* — write as plain English: "Most PRs got a first review within Xh · X PRs waited more than 24h". Name the PRs that waited longest.
-- *👤 WIP per person* — items currently In Progress / Review / Test per person. Write as a simple list. Flag anyone with >2 in plain language: "X has Y things in flight at once — risk of context switching".
-- *📊 Throughput trend* — PRs merged per week, last 4 weeks with a bar chart. Do not add narrative here — the numbers feed into the Recommendations section.
-- *🔀 Stage transition times* — compute avg time in each active column using `updatedAt` as proxy. Do not add narrative here — feed into Recommendations.
-- *💡 Recommendations* — exactly 2 bullets, grounded in the stale/review data from this week only. Format: `• [action verb] [specific pipe-linked item] — [reason in one clause]`. No generic advice.
-
-**Thread reply 4** — Tracked vs untracked PRs:
-Heading: *🔗 PR tracking — this week's merged PRs*
-Two sections:
-- *❌ Untracked* — merged PRs with no linked issue (show PR pipe-link + author), one bullet per PR
-- A per-person table: Name | Tracked | Untracked | Total — sorted by untracked desc
-Then a one-line summary: `{T} of {N} PRs this week were linked to an issue.`
+Print: `Delivered weekly dashboard for 3 repos (PayControl: N PRs, PCI: N PRs, GitOps: N PRs) — posted to webchat and Slack #paycontrol-reports.`
 
 ---
 
 ## Report Templates
 
 ### Webchat
-
-Produce exactly this structure. Omit ⏳ and ⚡ lines if empty for that repo.
 
 ```
 MEDIA:<chart path>
@@ -379,57 +162,32 @@ MEDIA:<chart path>
 
 ## PayControl
 
-▲ <What users/operators can now do — named capabilities with linked issues/PRs.>
-  (#N, #N, PR#N — no issue, PR#N — no issue)
+▲ <Shipped impact — named capabilities with linked issues/PRs.>
+▼ <Risk delta — net direction, critical items named.>
+→ <System change or omit.>
 
-▼ <What risk opened or closed — net direction, critical items named.>
-  (#N — <N>d, #N — <N>d)
-
-→ <Structural system change that affects operations/scale. Omit line if nothing significant.>
-  (#N, PR#N — no issue)
-
-_Building: <active in-flight work with issue links> (#N, #N, #N)_
+_Building: <in-flight> (#N, #N)_
 
 ⏳ Stale on board:
   • #N <title> — <Column>, <N>d — <assignee or unassigned>
-  • #N <title> — <Column>, <N>d — <assignee>
 
-⚡ Direct commits (<N> human — bypassed PR flow):
+⚡ Direct commits (<N> human):
   • `sha` <message> — <author>
-  (+ <N> automated commits — not flagged)
 
 ---
 
 ## PayControl-PCI
 
-▲ <Shipped impact with issue/PR links.>
-  (#N, PR#N)
-
-▼ <Risk delta.> (#N — <N>d)
-
-→ <System change or omit.>
-
-_Building: <in-flight> (#N, PR#N)_
-
-⏳ Stale on board:
-  • #N <title> — <Column>, <N>d — <assignee> ⚠️
+▲ ...  ▼ ...  → ...
+_Building: ..._
+⏳ ...
 
 ---
 
 ## PayControl-GitOps
 
-▲ <Shipped impact — include untracked PR#N — no issue inline.>
-  (PR#N, PR#N, PR#N — no issue)
-
-▼ <Risk delta or "No new risk signals.">
-
-→ <System change.> (PR#N, PR#N)
-
-_Building: <in-flight> (PR#N, closes PayControl#N)_
-
-⚡ Direct commits (<N> human — bypassed PR flow):
-  • `sha` <message> — <author>
-  (+ <N> automated Flux commits — expected, not flagged)
+▲ ...  ▼ ...  → ...
+⚡ ...
 
 ---
 
@@ -437,24 +195,19 @@ _Building: <in-flight> (PR#N, closes PayControl#N)_
 
 | | PayControl | PayControl-PCI | PayControl-GitOps |
 |---|---|---|---|
-| Issues open    | <N> (<delta>) | <N> (<delta>) | — |
-| PRs merged     | <N> (<delta>) | <N> (<delta>) | <N> (<delta>) |
-| Security open  | <N> (<delta 🔴/✅>) | <N> (<delta>) | — |
-| Stale issues   | <N> (<delta>) | <N> (<delta>) | — |
-| Untracked PRs  | <N> (<delta>) | <N> (<delta>) | <N> (<delta>) |
-
-(If no prior snapshot: "No prior data — trend will appear from next week.")
+| Issues open    | <N> (<delta>) | ... | — |
+| PRs merged     | <N> (<delta>) | ... | <N> (<delta>) |
+| Security open  | <N> (<delta 🔴/✅>) | ... | — |
+| Stale issues   | <N> (<delta>) | ... | — |
+| Untracked PRs  | <N> (<delta>) | ... | <N> (<delta>) |
 
 ---
 
 ## Action Items
 
 • 🔴 <title> — <detail> (#N)
-• 🔴 <title> — <detail>
-• 🟡 [<Repo>] <title> — <detail> (#N or PR#N)
-• 🟡 [<Repo>] <title> — <detail>
-• 🟡 <title> — <detail>
-(Up to 5, ranked by severity. Prefix repo in brackets if repo-specific.)
+• 🟡 [<Repo>] <title> — <detail> (#N)
+(Up to 5, ranked by severity.)
 
 ---
 
@@ -463,82 +216,93 @@ _Building: <in-flight> (PR#N, closes PayControl#N)_
 | Contributor | PRs | Repos |
 |---|---|---|
 | <Name> | <N> (+ <N> direct) | <repos> |
-| <Name> | <N> | <repos> |
-...
-(Human authors only, ranked by total PRs. Note direct commits separately.)
+(Human authors only, ranked by total PRs.)
 ```
 
-### Slack — Message 1
+### Slack — Main message
 
-Use Slack mrkdwn strictly: `*bold*`, `_italic_`, `<url|text>` links, `•` bullets, no `#` headers, no `---`, no pipe tables.
+Use Slack mrkdwn: `*bold*`, `_italic_`, `<url|text>` links, `•` bullets. No `#` headers, no `---`, no pipe tables.
 
 ```
-*PayControl Engineering — Weekly Dashboard · <Mon Day>–<Day>, <Year>*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚀 *PayControl Engineering · {date_from}–{date_to}*
+{N} PRs merged · {I} issues closed · {C} contributors · {S} security open
 
-*[ # ]  Snapshot*
-• *PayControl*        _<N> open · <N> merged · <N> sec issues (+<N> this week)_
-• *PayControl-PCI*    _<N> open · <N> merged · <N> sec issues (no change)_
-• *PayControl-GitOps* _<N> merged_
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⭐ *TEAM SPOTLIGHTS*
+• Full Name — issues closed · PRs merged · one short impact sentence
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔑 *KEY DELIVERIES*
 *── PayControl ──*
-▲ <shipped impact> _(<url|#N>, <url|#N>, <url|PR#N> — no issue)_
-▼ <risk delta> _(<url|#N> — <N>d, <url|#N> — <N>d)_
-→ <system change> _(<url|#N>, <url|PR#N> — no issue)_ _(omit line if nothing significant)_
-_Building: <in-flight> (<url|#N>, <url|#N>)_
-⏳ • <url|#N> <title> — <Column>, <N>d — _<assignee>_
-⚡ `sha` <message> — _<author>_  _(+ <N> Flux automated)_
+• emoji *Bold title* — description. Full Name · <url|Issue #NNN> · <url|PR #NNN>
+*── PayControl-PCI ──*  ...
+*── PayControl-GitOps ──*  ...
 
-*── PayControl-PCI ──*
-▲ <shipped impact> _(<url|#N>, <url|PR#N>)_
-▼ <risk delta> _(<url|#N> — <N>d)_
-_Building: <in-flight> (<url|#N>, <url|PR#N>)_
-⏳ • <url|#N> <title> — <Column>, <N>d ⚠️
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚨 *NEEDS ATTENTION*
+Only 🔴 items. Omit section entirely if none.
 
-*── PayControl-GitOps ──*
-▲ <shipped impact> _(<url|PR#N>, <url|PR#N> — no issue)_
-▼ <risk delta or "No new risk signals">
-→ <system change> _(<url|PR#N>)_
-_Building: <in-flight> (<url|PR#N>, closes <url|PayControl#N>)_
-⚡ `sha` <message> — _<author>_  _(+ <N> Flux)_
+_Full stale list, contributor stats, and trends in thread 👇_
 ```
 
-### Slack — Message 2
+### Slack — Thread reply 1 (Week-over-week)
 
 ```
-*PayControl Weekly · <date>  (2/2)*
-
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 *[ ~ ]  Week-over-Week · <prev date> → <this date>*
-• *PayControl*        issues <N> (<+/-N ↑↓>)  ·  merged <N> (<+/-N>)  ·  sec <N> (<+/-N 🔴/✅>)  ·  stale <N> (<+/-N>)
-• *PayControl-PCI*    issues <N> (<+/-N>)  ·  merged <N> (<+/-N>)  ·  sec <N> (<+/-N>)
-• *PayControl-GitOps* merged <N> (<+/-N>)  ·  untracked <N> (<+/-N>)
-_(No prior data — trend from next week)_ ← use this line only if no snapshot exists
+• *PayControl*        issues <N> (<delta>)  · merged <N> (<delta>)  · sec <N> (<delta 🔴/✅>)
+• *PayControl-PCI*    issues <N> (<delta>)  · merged <N> (<delta>)  · sec <N> (<delta>)
+• *PayControl-GitOps* merged <N> (<delta>)  · untracked <N> (<delta>)
+```
 
+### Slack — Thread reply 2 (Stale + Action items + Contributors)
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+*⏳ Stale items*
+• <url|#N> <title> — <Column>, <N>d — _<assignee>_  (🔴 >30d · 🟠 >14d · 🟡 >7d)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 *[ ! ]  Action Items*
 • *🔴 <title>* — <detail>: <url|#N>
-• *🔴 <title>* — <detail>
-• *🟡 [<Repo>] <title>* — <detail>: <url|#N>
-• *🟡 [<Repo>] <title>* — <detail>: <url|PR#N>
-• *🟡 <title>* — <detail>
-_(Up to 5, ranked by severity.)_
+• *🟡 [Repo] <title>* — <detail>: <url|#N>
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 *[ + ]  By Contributor*
 • <Name>  *<N> PRs* _(+ <N> direct)_  — _<repos>_
-• <Name>  *<N> PRs*  — _<repos>_
-_(Human authors only, ranked by total PRs.)_
 ```
 
-### 8. Tone guidelines (mandatory)
+### Slack — Thread reply 3 (Board flow)
 
-Apply these rules to every section of both the webchat and Slack output:
+Heading: `*📋 Board flow — PayControlLimited/projects/1*`
 
-- **Neutral and factual** — no personal opinions, no judgements about individuals or their work
-- **Positive framing** — celebrate what shipped; frame stale items and action items as opportunities to move things forward, not as failures
-- **Stale PRs** — describe as "waiting for review" or "ready for a decision", not "abandoned" or "neglected"
-- **Untracked PRs** — frame as a nudge to link issues before starting work, not a criticism
-- **Security issues** — factual: state age and count; recommend the concrete next step (e.g. "ready to merge", "needs triage")
-- **Team spotlights** — always end with a positive impact sentence; never omit a contributor who shipped something
-- **No external names** — do not mention client names, company names, or personal contacts from outside the team
+Sections in order:
+- *✅ Done this week* — issues moved to Done column
+- *🔥 P0 in flight* — P0 items in In Progress / Review / Test
+- *⏳ Stale in flight (>14 days)* — In Progress / Review / Test only (not Todo)
+- *👀 In Review >3 days* — list with age + pipe-link
+- *⏱ Cycle time* — plain English: "Most PRs shipped in Xd · slowest 10% took Y+ days"
+- *🕐 Time to first review* — plain English: "Most got a review within Xh · X PRs waited >24h"
+- *👤 WIP per person* — flag anyone with >2 items in flight
+- *📊 Throughput trend* — PRs merged per week, last 4 weeks
+- *💡 Recommendations* — exactly 2 bullets, grounded in this week's data only
 
-### 9. Done
+### Slack — Thread reply 4 (PR tracking)
 
-Print: "Delivered weekly dashboard for 3 repos (PayControl: N PRs, PCI: N PRs, GitOps: N PRs) — posted to webchat and Slack #paycontrol-reports (2 messages)."
+Heading: `*🔗 PR tracking — this week's merged PRs*`
+- *❌ Untracked* — one bullet per merged PR with no linked issue (PR pipe-link + author)
+- Per-person table: Name | Tracked | Untracked | Total — sorted by untracked desc
+- Summary line: `{T} of {N} PRs this week were linked to an issue.`
+
+---
+
+## Tone guidelines (mandatory)
+
+- **Neutral and factual** — no personal opinions, no judgements about individuals
+- **Positive framing** — celebrate what shipped; stale items are opportunities, not failures
+- **Stale PRs** — "waiting for review" or "ready for a decision", not "abandoned"
+- **Untracked PRs** — nudge to link issues before starting work, not a criticism
+- **Security issues** — factual: state age and count; recommend the concrete next step
+- **Team spotlights** — always end with a positive impact sentence
+- **No external names** — no client names, company names, or personal contacts

@@ -7,20 +7,22 @@ Run:
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "tests"))
-from helpers import Runner, SKILL_FEEDBACK, skill_contains
+from helpers import Runner, SKILL_FEEDBACK, SCRIPTS_FEEDBACK, skill_contains, skill_or_scripts_contains
 
 def main():
     r = Runner("Customer Feedback · Static checks")
     s = SKILL_FEEDBACK
+    def anywhere(pattern, flags=0):
+        return skill_or_scripts_contains(s, SCRIPTS_FEEDBACK, pattern, flags)
 
     r.check("1.  Posts via chat.postMessage (not webhook)",
-            skill_contains(s, r"chat\.postMessage"))
+            anywhere(r"chat\.postMessage"))
 
     r.check("2.  Threading — thread_ts used for replies",
-            skill_contains(s, r"thread_ts"))
+            anywhere(r"thread_ts"))
 
     r.check("3.  Channel loaded from paycontrol_reports_channel config",
-            skill_contains(s, r"paycontrol_reports_channel"))
+            anywhere(r"paycontrol_reports_channel"))
 
     r.check("4.  Main message = new items this week only",
             skill_contains(s, r"Main message.*new items.*this week|new items.*this week.*Main message",
@@ -49,10 +51,13 @@ def main():
             skill_contains(s, r"users\.info.*real_name|real_name.*users\.info", __import__('re').DOTALL))
 
     r.check("12. Bulk semantic matching — 500 issues fetched",
-            skill_contains(s, r"limit 500|--limit 500"))
+            anywhere(r"limit.*500|500.*limit|\"500\""))
 
     r.check("13. Reactions: ✅ = Resolved, 👍 = Tracked",
-            skill_contains(s, r"white_check_mark.*Resolved|thumbsup.*Tracked", __import__('re').DOTALL))
+            anywhere(r"white_check_mark|heavy_check_mark") and
+            anywhere(r"Resolved|✅ Resolved") and
+            anywhere(r"thumbsup|\+1") and
+            anywhere(r"Tracked|🔧 Tracked"))
 
     r.check("14. Voice/PDF/Word attachments handled",
             skill_contains(s, r"audio|\.m4a|\.pdf|\.docx", __import__('re').IGNORECASE))
@@ -70,14 +75,14 @@ def main():
             skill_contains(s, r"no.*external.*names|company names|names of external", __import__('re').IGNORECASE))
 
     r.check("19. No-match line suppressed",
-            skill_contains(s, r"omit the → line entirely|nothing matched.*omit") and
-            not skill_contains(s, r"→.*_\(no match|→.*no match found"))
+            anywhere(r"omit.*→.*line|only if.*match.*exists|omit line entirely", __import__('re').IGNORECASE) and
+            not anywhere(r"→.*no match found"))
 
     r.check("20. Poll removed from skill (lives in paycontrol-reports-poll cron job)",
-            not skill_contains(s, r"reactions\.add.*one.*two.*three|post_poll_question", __import__('re').DOTALL))
+            not anywhere(r"reactions\.add.*one.*two.*three|post_poll_question", __import__('re').DOTALL))
 
     r.check("21. DRY_RUN flag raises SystemExit before Slack posting",
-            skill_contains(s, r"DRY_RUN") and skill_contains(s, r"raise SystemExit|SystemExit\(0\)"))
+            anywhere(r"DRY_RUN") and anywhere(r"raise SystemExit|SystemExit\(0\)"))
 
     sys.exit(0 if r.summary() else 1)
 
