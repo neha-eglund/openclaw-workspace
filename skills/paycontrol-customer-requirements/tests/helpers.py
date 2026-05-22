@@ -3,8 +3,8 @@ from pathlib import Path
 
 BASE = Path(__file__).parent.parent.parent
 
-SKILL_FEEDBACK   = Path(__file__).parent / "SKILL.md"
-SCRIPTS_FEEDBACK = Path(__file__).parent / "scripts"
+SKILL_FEEDBACK   = Path(__file__).parent.parent / "SKILL.md"
+SCRIPTS_FEEDBACK = Path(__file__).parent.parent / "scripts"
 
 TOKENS         = BASE / "config/slack-tokens.json"
 NAMES          = BASE / "config/contributor-names.json"
