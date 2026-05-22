@@ -88,7 +88,7 @@ OUT_DIR="$HOME/.openclaw/workspace/nightly-results/weekly-summary"
 TODAY=$(python3 -c "from datetime import datetime,timezone; print(datetime.now(timezone.utc).strftime('%Y-%m-%d'))")
 OUT="$OUT_DIR/paycontrol-weekly-$TODAY.png"
 
-python3 "$SKILL_DIR/chart.py" "$OUT" "$TODAY" \
+python3 "$SKILL_DIR/scripts/chart.py" "$OUT" "$TODAY" \
   <OPEN> <TTM_MEDIAN> \
   '<issues_by_area_json>' \
   '[<u1>,<14d>,<1-4d>,<4-24h>,<1h>]'
