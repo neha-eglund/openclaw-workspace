@@ -13,25 +13,28 @@ Outputs:
 Usage:
     python3 scripts/save_snapshot.py
 """
-import json, glob, time, sys
+import json, time, sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import config as cfg
 
-RESOLVED_PREFIX    = "✅"
-TRACKED_PREFIX     = "🔧"
-SEVERITY_BLOCKING  = "🔴 Blocking"
-SEVERITY_HIGH      = "🟡 High"
-SEVERITY_NORMAL    = "🔵 Normal"
+RESOLVED_PREFIX   = "✅"
+TRACKED_PREFIX    = "🔧"
+SEVERITY_BLOCKING = "🔴 Blocking"
+SEVERITY_HIGH     = "🟡 High"
+SEVERITY_NORMAL   = "🔵 Normal"
 
 window     = json.loads(Path(cfg.TMP_WINDOW).read_text())
 today      = window['today']
 since_date = window['since_date']
 items      = json.loads(Path(cfg.TMP_ITEMS).read_text())
 
-# Load previous cumulative snapshot
-prev_snapshots = sorted(cfg.SNAPSHOT_DIR.glob("snapshot-*.json"))
+# Load previous cumulative snapshot — exclude today's file to avoid double-counting on re-runs
+prev_snapshots = sorted(
+    p for p in cfg.SNAPSHOT_DIR.glob("snapshot-*.json")
+    if p.stem != f"snapshot-{today}"
+)
 prev = json.loads(prev_snapshots[-1].read_text()) if prev_snapshots else {}
 
 # Count this run's items
@@ -72,22 +75,21 @@ this_snapshot = {
     "by_category": cum_by_category,
 }
 
-snap_path = cfg.SNAPSHOT_DIR / f"snapshot-{today}.json"
-snap_path.write_text(json.dumps(this_snapshot, indent=2))
+(cfg.SNAPSHOT_DIR / f"snapshot-{today}.json").write_text(json.dumps(this_snapshot, indent=2))
 print(f"Snapshot saved: snapshot-{today}.json")
 
 
 def fmt_delta(new_val, old_val, good_direction="down"):
     if old_val is None:
-        return new_val, "(no prior data)"
+        return "(no prior data)"
     d = new_val - old_val
     if d == 0:
-        return new_val, "no change"
-    sign = "+" if d > 0 else ""
+        return "no change"
+    sign  = "+" if d > 0 else ""
     arrow = "↑" if d > 0 else "↓"
     is_bad = (good_direction == "down" and d > 0) or (good_direction == "up" and d < 0)
     flag = "🔴" if is_bad else "✅"
-    return new_val, f"{flag} {sign}{d} {arrow}"
+    return f"{flag} {sign}{d} {arrow}"
 
 
 deltas = {

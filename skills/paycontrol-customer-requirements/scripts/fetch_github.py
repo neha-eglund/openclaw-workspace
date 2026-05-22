@@ -139,8 +139,9 @@ for pr in all_prs:
     refs.update(bare_pat.findall(pr["title"]))
     for inum in refs:
         key = (pr["number"], pr["repo"])
-        if key not in seen.setdefault(inum, set()):
-            seen[inum].add(key)
+        bucket = seen.setdefault(inum, set())
+        if key not in bucket:
+            bucket.add(key)
             issue_to_prs.setdefault(inum, []).append({
                 "number": pr["number"],
                 "state":  pr["state"],

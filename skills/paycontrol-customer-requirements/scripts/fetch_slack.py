@@ -13,7 +13,8 @@ Usage:
     export SLACK_TOKEN=...
     python3 scripts/fetch_slack.py
 """
-import json, sys, urllib.request, urllib.error
+import json, sys, urllib.request, urllib.error, urllib.parse
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -30,8 +31,7 @@ SLACK_API = "https://slack.com/api"
 
 
 def slack_get(endpoint, **params):
-    query = "&".join(f"{k}={v}" for k, v in params.items())
-    url = f"{SLACK_API}/{endpoint}?{query}"
+    url = f"{SLACK_API}/{endpoint}?{urllib.parse.urlencode(params)}"
     req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
     try:
         resp = urllib.request.urlopen(req, timeout=15)
@@ -44,7 +44,10 @@ def slack_get(endpoint, **params):
 # Determine oldest timestamp to fetch from
 oldest = "0"
 if cfg.LAST_RUN_FILE.exists():
-    oldest = json.loads(cfg.LAST_RUN_FILE.read_text()).get("last_ts", "0")
+    try:
+        oldest = json.loads(cfg.LAST_RUN_FILE.read_text()).get("last_ts", "0")
+    except (json.JSONDecodeError, KeyError):
+        oldest = "0"
 print(f"Fetching since ts={oldest}")
 
 # Fetch messages
@@ -58,7 +61,7 @@ print(f"Messages fetched: {len(messages)}")
 today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
 if messages:
     oldest_ts  = min(float(m['ts']) for m in messages)
-    since_date = datetime.utcfromtimestamp(oldest_ts).strftime('%Y-%m-%d')
+    since_date = datetime.fromtimestamp(oldest_ts, tz=timezone.utc).strftime('%Y-%m-%d')
 else:
     since_date = today
 Path(cfg.TMP_WINDOW).write_text(json.dumps({"since_date": since_date, "today": today}))
@@ -77,15 +80,16 @@ Path(cfg.TMP_RESOLVED).write_text(json.dumps(resolved_ts))
 Path(cfg.TMP_ACKNOWLEDGED).write_text(json.dumps(acknowledged_ts))
 print(f"Reactions — resolved: {len(resolved_ts)}  acknowledged: {len(acknowledged_ts)}")
 
-# Fetch threads for messages that have replies
+# Fetch threads for messages that have replies (parallel, capped at 5 for Slack rate limits)
+def fetch_thread(ts):
+    replies = slack_get("conversations.replies", channel=CHANNEL_ID, ts=ts).get("messages", [])
+    return ts, replies[1:]  # skip parent
+
+threaded_messages = [m["ts"] for m in messages if m.get("reply_count", 0) > 0]
 threads = {}
-for m in messages:
-    if m.get("reply_count", 0) > 0:
-        ts = m["ts"]
-        replies = slack_get(
-            "conversations.replies", channel=CHANNEL_ID, ts=ts
-        ).get("messages", [])
-        threads[ts] = replies[1:]  # skip parent
+with ThreadPoolExecutor(max_workers=5) as pool:
+    for ts, replies in pool.map(fetch_thread, threaded_messages):
+        threads[ts] = replies
 Path(cfg.TMP_THREADS).write_text(json.dumps(threads, indent=2))
 print(f"Threads fetched: {len(threads)}")
 
