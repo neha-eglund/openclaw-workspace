@@ -12,6 +12,29 @@ Window: since last run (snapshot-driven); first run fetches all messages from ch
 
 ---
 
+## Usage
+
+**Dry run** (no Slack posting — output to stdout):
+```bash
+./bin/run-feedback
+./bin/run-feedback | less -R
+```
+
+**With a different LLM:**
+```bash
+AGENT=codex ./bin/run-feedback
+```
+
+**Manual** (set env vars yourself):
+```bash
+export SLACK_TOKEN=xoxb-...
+export GH_TOKEN=ghp_...
+export DRY_RUN=true
+claude -p "Read this SKILL.md and execute all instructions in it exactly as written."
+```
+
+---
+
 ## Classification Schema
 
 ### Category
