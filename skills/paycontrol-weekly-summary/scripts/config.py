@@ -10,7 +10,7 @@ Environment variables:
     SLACK_CHANNEL_ID      Slack channel ID (default: C0ATQEBLT89)
     WORKSPACE_DIR         Base workspace directory
                           (default: ~/.openclaw/workspace)
-    RESULTS_DIR           Where snapshots and chart PNGs are saved
+    RESULTS_DIR           Where snapshots are saved
                           (default: WORKSPACE_DIR/nightly-results/weekly-summary)
 """
 import json, os
@@ -32,7 +32,7 @@ RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── Config files (used as fallback when env vars are not set) ───────────────
 
-_TOKENS_FILE = WORKSPACE_DIR / "config" / "slack-tokens.json"
+_TOKENS_FILE   = WORKSPACE_DIR / "config" / "slack-tokens.json"
 _OPENCLAW_FILE = Path(os.path.expanduser("~/.openclaw/openclaw.json"))
 
 
@@ -44,15 +44,18 @@ def _load_tokens():
 
 def _load_gh_token():
     if _OPENCLAW_FILE.exists():
-        return json.loads(_OPENCLAW_FILE.read_text())["env"]["vars"]["GH_TOKEN"]
+        try:
+            return json.loads(_OPENCLAW_FILE.read_text())["env"]["vars"]["GH_TOKEN"]
+        except (KeyError, json.JSONDecodeError):
+            pass
     return None
 
 
 # ── Credentials ─────────────────────────────────────────────────────────────
 
-GH_TOKEN = os.environ.get("GH_TOKEN") or _load_gh_token()
-
 _tokens = _load_tokens()
+
+GH_TOKEN          = os.environ.get("GH_TOKEN")          or _load_gh_token()
 REPORTS_BOT_TOKEN = os.environ.get("REPORTS_BOT_TOKEN") or _tokens.get("reports_bot_token")
 SLACK_CHANNEL_ID  = os.environ.get("SLACK_CHANNEL_ID")  or _tokens.get("paycontrol_reports_channel", "C0ATQEBLT89")
 
@@ -62,13 +65,13 @@ CONTRIBUTOR_NAMES_FILE = WORKSPACE_DIR / "config" / "contributor-names.json"
 
 # ── Snapshot paths ───────────────────────────────────────────────────────────
 
-SNAPSHOT_DIR = RESULTS_DIR  # snapshots live alongside charts: snapshot-YYYY-MM-DD.json
+SNAPSHOT_DIR = RESULTS_DIR
 
 # ── Temp files (ephemeral, always /tmp) ─────────────────────────────────────
 
-TMP_WINDOW       = "/tmp/ws_window.json"
-TMP_BOARD        = "/tmp/ws_board.json"
-TMP_STATS        = "/tmp/ws_stats.json"
-TMP_DELTAS       = "/tmp/ws_deltas.json"
-TMP_REPORT       = "/tmp/ws_report.json"
-TMP_REPO_PREFIX  = "/tmp/ws_"  # e.g. /tmp/ws_merged_prs_PayControlLimited_PayControl.json
+TMP_WINDOW      = "/tmp/ws_window.json"
+TMP_BOARD       = "/tmp/ws_board.json"
+TMP_STATS       = "/tmp/ws_stats.json"
+TMP_DELTAS      = "/tmp/ws_deltas.json"
+TMP_REPORT      = "/tmp/ws_report.json"
+TMP_REPO_PREFIX = "/tmp/ws_"

@@ -8,8 +8,9 @@ Usage:
     python3 scripts/post_slack.py           # live post
     python3 scripts/post_slack.py --dry-run # print to stdout, skip Slack
 """
-import json, sys, urllib.request, argparse
+import json, sys, urllib.request, urllib.error, argparse
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent))
 import config as cfg
 
@@ -19,11 +20,11 @@ args = parser.parse_args()
 
 DRY_RUN = args.dry_run
 
-token = cfg.REPORTS_BOT_TOKEN
+token   = cfg.REPORTS_BOT_TOKEN
 channel = cfg.SLACK_CHANNEL_ID
 
-report = json.load(open(cfg.TMP_REPORT))
-main_message  = report['main_message']
+report         = json.loads(Path(cfg.TMP_REPORT).read_text())
+main_message   = report['main_message']
 thread_reply_1 = report['thread_reply_1']  # week-over-week
 thread_reply_2 = report['thread_reply_2']  # stale + action items + contributors
 thread_reply_3 = report['thread_reply_3']  # board flow
@@ -33,13 +34,12 @@ DIVIDER = "━━━━━━━━━━━━━━━━━━━━━━━
 
 if DRY_RUN:
     print("=== DRY RUN — not posting to Slack ===\n")
-    raise SystemExit(0)
     print(f"[MAIN]\n{main_message}\n")
     print(f"{DIVIDER}\n[THREAD 1 — Week-over-week]\n{thread_reply_1}\n")
     print(f"{DIVIDER}\n[THREAD 2 — Stale + Action items + Contributors]\n{thread_reply_2}\n")
     print(f"{DIVIDER}\n[THREAD 3 — Board flow]\n{thread_reply_3}\n")
     print(f"{DIVIDER}\n[THREAD 4 — PR tracking]\n{thread_reply_4}\n")
-    sys.exit(0)
+    raise SystemExit(0)
 
 
 def post(text, thread_ts=None):
@@ -52,15 +52,17 @@ def post(text, thread_ts=None):
         data=data,
         headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {token}'}
     )
-    resp = json.loads(urllib.request.urlopen(req).read())
+    try:
+        resp = json.loads(urllib.request.urlopen(req, timeout=15).read())
+    except urllib.error.URLError as e:
+        raise Exception(f"Network error posting to Slack: {e}") from e
     if not resp.get('ok'):
-        raise Exception(f"Slack error: {resp.get('error')}")
+        raise Exception(f"Slack error: {resp.get('error')}  (channel={channel})")
     return resp['ts']
 
 
 ts = post(main_message)
 print(f"Main message posted: {ts}")
-
 post(thread_reply_1, thread_ts=ts)
 post(thread_reply_2, thread_ts=ts)
 post(thread_reply_3, thread_ts=ts)
