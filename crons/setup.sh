@@ -1,7 +1,6 @@
 #!/bin/bash
 # Register PayControl cron jobs in OpenClaw.
-# Run once per environment after cloning the repo and filling in config/slack-tokens.json
-# and config/slack-webhooks.json.
+# Run once per environment after cloning the repo and filling in config/slack-tokens.json.
 #
 # Usage:
 #   chmod +x crons/setup.sh
@@ -10,7 +9,6 @@
 # Prerequisites:
 #   - OpenClaw CLI installed and authenticated (openclaw login)
 #   - config/slack-tokens.json filled in  (copy from config/slack-tokens.example.json)
-#   - config/slack-webhooks.json filled in (copy from config/slack-webhooks.example.json)
 #   - GH_TOKEN set in ~/.openclaw/openclaw.json env.vars.GH_TOKEN
 #     OR exported as an environment variable: export GH_TOKEN=ghp_...
 
@@ -20,7 +18,6 @@ WORKSPACE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Load credentials
 SLACK_TOKEN=$(python3 -c "import json; print(json.load(open('$WORKSPACE_DIR/config/slack-tokens.json'))['bot_token'])")
-WEBHOOK=$(python3 -c "import json; print(json.load(open('$WORKSPACE_DIR/config/slack-webhooks.json'))['paycontrol-reports'])")
 
 if [ -z "$GH_TOKEN" ]; then
   GH_TOKEN=$(python3 -c "import json; print(json.load(open('$HOME/.openclaw/openclaw.json'))['env']['vars']['GH_TOKEN'])" 2>/dev/null || true)
@@ -28,11 +25,6 @@ fi
 
 if [ -z "$SLACK_TOKEN" ] || [ "$SLACK_TOKEN" = "xoxb-YOUR-BOT-TOKEN-HERE" ]; then
   echo "ERROR: SLACK_TOKEN not set. Fill in config/slack-tokens.json first."
-  exit 1
-fi
-
-if [ -z "$WEBHOOK" ] || [ "$WEBHOOK" = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL" ]; then
-  echo "ERROR: SLACK_WEBHOOK not set. Fill in config/slack-webhooks.json first."
   exit 1
 fi
 
@@ -57,9 +49,8 @@ openclaw cron add \
 Credentials:
 - SLACK_TOKEN=$SLACK_TOKEN
 - GH_TOKEN=$GH_TOKEN
-- WEBHOOK=$WEBHOOK
 
-Set all three as env vars before running."
+Set both as env vars before running."
 
 echo "Registering paycontrol-weekly-summary..."
 openclaw cron add \
@@ -76,7 +67,6 @@ openclaw cron add \
 
 Credentials:
 - GH_TOKEN=$GH_TOKEN
-- WEBHOOK: load from $WORKSPACE_DIR/config/slack-webhooks.json
 
 Set GH_TOKEN as an env var before running."
 

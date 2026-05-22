@@ -20,6 +20,6 @@
     "kind": "agentTurn",
     "model": "claude-sonnet-4-6",
     "timeoutSeconds": 1800,
-    "message": "Read the skill file at <WORKSPACE>/skills/paycontrol-weekly-summary/SKILL.md and execute all instructions in it exactly as written.\n\nCredentials:\n- GH_TOKEN=<GH_TOKEN>\n- WEBHOOK: load from <WORKSPACE>/config/slack-webhooks.json\n\nSet GH_TOKEN as an env var before running."
+    "message": "Read the skill file at <WORKSPACE>/skills/paycontrol-weekly-summary/SKILL.md and execute all instructions in it exactly as written.\n\nCredentials:\n- GH_TOKEN=<GH_TOKEN>\n\nSet GH_TOKEN as an env var before running."
   }
 }
