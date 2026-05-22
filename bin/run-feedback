@@ -37,6 +37,12 @@ echo "" >&2
 
 export SLACK_TOKEN GH_TOKEN DRY_RUN=true
 
-${AGENT:-claude} -p "Read the skill file at $SKILL and execute all instructions in it exactly as written.
+AGENT_BIN="${AGENT:-claude}"
+PROMPT="Read the skill file at $SKILL and execute all instructions in it exactly as written.
 
 SLACK_TOKEN, GH_TOKEN, and DRY_RUN are already set in the environment — do not post to Slack."
+
+case "$AGENT_BIN" in
+  claude) "$AGENT_BIN" -p "$PROMPT" ;;
+  *)      "$AGENT_BIN" "$PROMPT" ;;
+esac
