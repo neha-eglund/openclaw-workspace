@@ -39,8 +39,4 @@ export SLACK_TOKEN GH_TOKEN DRY_RUN=true
 
 claude -p "Read the skill file at $SKILL and execute all instructions in it exactly as written.
 
-Credentials:
-- SLACK_TOKEN=$SLACK_TOKEN
-- GH_TOKEN=$GH_TOKEN
-
-Set both as env vars before running. DRY_RUN is already set to true — do not post to Slack."
+SLACK_TOKEN, GH_TOKEN, and DRY_RUN are already set in the environment — do not post to Slack."
