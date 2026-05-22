@@ -83,7 +83,7 @@ Each item includes:
 ### Skill definition
 
 Full logic is defined in:
-`/Users/nehaeglund/.openclaw/workspace/skills/paycontrol-customer-requirements/SKILL.md`
+`/Users/nehaeglund/.openclaw/workspace/skills/paycontrol-customer-feedback/SKILL.md`
 
 The cron job prompt is a condensed version of this skill. The skill file is the source of truth.
 
@@ -191,7 +191,7 @@ All GitHub links in the Slack message use pipe-link format: `<https://github.com
 | `nightly-results/customer-feedback/last-run.json` | Run snapshot — controls time window |
 | `config/slack-tokens.json` | Bot token for reading #paycontrol-feedback |
 | `config/slack-webhooks.json` | Webhook URL for posting to #paycontrol-reports |
-| `skills/paycontrol-customer-requirements/SKILL.md` | Full skill definition |
+| `skills/paycontrol-customer-feedback/SKILL.md` | Full skill definition |
 
 ---
 

@@ -1,5 +1,5 @@
 ---
-name: paycontrol-customer-requirements
+name: paycontrol-customer-feedback
 description: "Reads #paycontrol-feedback Slack channel since last run (or from channel start on first run), cross-references feedback against the GitHub Project board (PayControlLimited/projects/1), classifies each item by Category, Severity, and Status, and posts a structured weekly report to #paycontrol-reports."
 ---
 
@@ -46,7 +46,7 @@ export GH_TOKEN=$(python3 -c "import json; print(json.load(open('/Users/nehaeglu
 ### Step 2 — Fetch Slack messages
 
 ```bash
-python3 ~/.openclaw/workspace/skills/paycontrol-customer-requirements/scripts/fetch_slack.py
+python3 ~/.openclaw/workspace/skills/paycontrol-customer-feedback/scripts/fetch_slack.py
 ```
 
 Writes:
@@ -59,7 +59,7 @@ Writes:
 ### Step 3 — Fetch GitHub data
 
 ```bash
-python3 ~/.openclaw/workspace/skills/paycontrol-customer-requirements/scripts/fetch_github.py
+python3 ~/.openclaw/workspace/skills/paycontrol-customer-feedback/scripts/fetch_github.py
 ```
 
 Writes:
@@ -154,7 +154,7 @@ Write to `/tmp/cf_feedback_items.json`.
 ### Step 7 — Save snapshot
 
 ```bash
-python3 ~/.openclaw/workspace/skills/paycontrol-customer-requirements/scripts/save_snapshot.py
+python3 ~/.openclaw/workspace/skills/paycontrol-customer-feedback/scripts/save_snapshot.py
 ```
 
 Reads: `/tmp/cf_feedback_items.json`, `/tmp/cf_window.json`
@@ -176,7 +176,7 @@ See **Report Format** section below for exact structure of each message.
 ### Step 9 — Post to Slack
 
 ```bash
-python3 ~/.openclaw/workspace/skills/paycontrol-customer-requirements/scripts/post_slack.py
+python3 ~/.openclaw/workspace/skills/paycontrol-customer-feedback/scripts/post_slack.py
 # Dry run: python3 .../post_slack.py --dry-run
 ```
 

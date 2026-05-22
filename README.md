@@ -6,7 +6,7 @@ Personal OpenClaw agent workspace for automating engineering reports, security a
 
 ```
 skills/                          # Agent skill definitions
-  paycontrol-customer-requirements/  # Weekly customer feedback triage
+  paycontrol-customer-feedback/  # Weekly customer feedback triage
   paycontrol-weekly-summary/         # Weekly engineering dashboard
   github-pentest/                    # GitHub security pen-testing
   github-pr-review/                  # Automated PR reviews
@@ -85,7 +85,7 @@ Edit `skills/paycontrol-weekly-summary/SKILL.md` — the prompt template control
 
 ### Change the customer feedback classification
 
-Edit `skills/paycontrol-customer-requirements/SKILL.md` — the classification schema, matching confidence rules, and report format are all defined there.
+Edit `skills/paycontrol-customer-feedback/SKILL.md` — the classification schema, matching confidence rules, and report format are all defined there.
 
 ### Add a new repo to the weekly summary
 

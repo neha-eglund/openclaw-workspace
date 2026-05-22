@@ -1,10 +1,10 @@
 """
-Integration checks for paycontrol-customer-requirements.
+Integration checks for paycontrol-customer-feedback.
 Verifies Slack API access and snapshot state.
 Requires internet access and valid credentials in config/.
 
 Run:
-    python3 skills/paycontrol-customer-requirements/test_integration.py
+    python3 skills/paycontrol-customer-feedback/test_integration.py
 """
 import json, sys, urllib.request
 

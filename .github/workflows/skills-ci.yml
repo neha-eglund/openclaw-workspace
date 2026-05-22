@@ -30,14 +30,14 @@ jobs:
 
       - name: Type check (mypy)
         run: |
-          mypy skills/paycontrol-customer-requirements/scripts/ \
+          mypy skills/paycontrol-customer-feedback/scripts/ \
             --ignore-missing-imports --no-error-summary
           mypy skills/paycontrol-weekly-summary/scripts/ \
             --ignore-missing-imports --no-error-summary
 
-      - name: Unit tests — paycontrol-customer-requirements
+      - name: Unit tests — paycontrol-customer-feedback
         if: always()
-        working-directory: skills/paycontrol-customer-requirements/tests
+        working-directory: skills/paycontrol-customer-feedback/tests
         run: python3 tests.py
 
       - name: Unit tests — paycontrol-weekly-summary
@@ -45,9 +45,9 @@ jobs:
         working-directory: skills/paycontrol-weekly-summary/tests
         run: python3 tests.py
 
-      - name: Integration tests — paycontrol-customer-requirements
+      - name: Integration tests — paycontrol-customer-feedback
         if: always()
-        working-directory: skills/paycontrol-customer-requirements/tests
+        working-directory: skills/paycontrol-customer-feedback/tests
         env:
           CI: "true"
           SLACK_TOKEN: ${{ secrets.SLACK_TOKEN }}

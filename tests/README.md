@@ -1,12 +1,12 @@
 # PayControl Skill Tests
 
-Tests for the two PayControl cron skills: `paycontrol-customer-requirements` and `paycontrol-weekly-summary`.
+Tests for the two PayControl cron skills: `paycontrol-customer-feedback` and `paycontrol-weekly-summary`.
 
 ## How to run
 
 ```bash
 # Per-skill static checks — run these when you edit a skill
-python3 skills/paycontrol-customer-requirements/tests.py
+python3 skills/paycontrol-customer-feedback/tests.py
 python3 skills/paycontrol-weekly-summary/tests.py
 
 # Integration checks — Slack + GitHub APIs (requires internet)
@@ -25,7 +25,7 @@ Static checks live inside each skill directory so they can be committed and upda
 
 | File | What it tests | Speed |
 |---|---|---|
-| `skills/paycontrol-customer-requirements/tests.py` | Customer feedback skill — static checks | Instant |
+| `skills/paycontrol-customer-feedback/tests.py` | Customer feedback skill — static checks | Instant |
 | `skills/paycontrol-weekly-summary/tests.py` | Weekly summary skill — static checks | Instant |
 | `tests/test_integration.py` | Slack + GitHub API connectivity + config | ~5s |
 | `tests/test_evals.py` | LLM-as-judge quality scoring of a saved report | ~30s |

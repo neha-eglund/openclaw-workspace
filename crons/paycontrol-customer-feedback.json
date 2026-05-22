@@ -20,6 +20,6 @@
     "kind": "agentTurn",
     "model": "claude-sonnet-4-6",
     "timeoutSeconds": 1800,
-    "message": "Read the skill file at <WORKSPACE>/skills/paycontrol-customer-requirements/SKILL.md and execute all instructions in it exactly as written.\n\nCredentials:\n- SLACK_TOKEN=<SLACK_TOKEN>\n- GH_TOKEN=<GH_TOKEN>\n- WEBHOOK=<SLACK_WEBHOOK_PAYCONTROL_REPORTS>\n\nSet all three as env vars before running."
+    "message": "Read the skill file at <WORKSPACE>/skills/paycontrol-customer-feedback/SKILL.md and execute all instructions in it exactly as written.\n\nCredentials:\n- SLACK_TOKEN=<SLACK_TOKEN>\n- GH_TOKEN=<GH_TOKEN>\n- WEBHOOK=<SLACK_WEBHOOK_PAYCONTROL_REPORTS>\n\nSet all three as env vars before running."
   }
 }

@@ -1,10 +1,10 @@
 """
-LLM-as-judge evals for paycontrol-customer-requirements.
+LLM-as-judge evals for paycontrol-customer-feedback.
 Scores a dry-run report output against quality criteria.
 Requires ANTHROPIC_API_KEY and a saved report file.
 
 Run:
-    python3 skills/paycontrol-customer-requirements/test_evals.py --file path/to/report.txt
+    python3 skills/paycontrol-customer-feedback/test_evals.py --file path/to/report.txt
 """
 import argparse, os, sys
 from pathlib import Path

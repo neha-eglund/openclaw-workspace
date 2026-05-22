@@ -1,8 +1,8 @@
 """
-Static checks for the paycontrol-customer-requirements skill.
+Static checks for the paycontrol-customer-feedback skill.
 
 Run:
-    python3 skills/paycontrol-customer-requirements/tests.py
+    python3 skills/paycontrol-customer-feedback/tests.py
 """
 import re, sys
 from helpers import Runner, SKILL_FEEDBACK, SCRIPTS_FEEDBACK, skill_contains, skill_or_scripts_contains

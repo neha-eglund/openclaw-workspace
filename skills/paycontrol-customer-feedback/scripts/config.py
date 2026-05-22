@@ -1,5 +1,5 @@
 """
-Central config for paycontrol-customer-requirements scripts.
+Central config for paycontrol-customer-feedback scripts.
 
 All credentials and paths are resolved here. Override with environment variables
 to run in GitHub Actions, Docker, or any other environment.

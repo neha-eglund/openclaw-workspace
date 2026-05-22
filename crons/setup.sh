@@ -52,7 +52,7 @@ openclaw cron add \
   --delivery-mode none \
   --model claude-sonnet-4-6 \
   --timeout 1800 \
-  --message "Read the skill file at $WORKSPACE_DIR/skills/paycontrol-customer-requirements/SKILL.md and execute all instructions in it exactly as written.
+  --message "Read the skill file at $WORKSPACE_DIR/skills/paycontrol-customer-feedback/SKILL.md and execute all instructions in it exactly as written.
 
 Credentials:
 - SLACK_TOKEN=$SLACK_TOKEN
