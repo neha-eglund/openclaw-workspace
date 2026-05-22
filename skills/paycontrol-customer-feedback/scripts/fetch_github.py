@@ -96,7 +96,7 @@ with ThreadPoolExecutor(max_workers=len(REPOS) + 1) as pool:
     board_future = pool.submit(gh, "api", "graphql", "-f", """query={
   organization(login: "PayControlLimited") {
     projectV2(number: 1) {
-      items(first: 200) {
+      items(first: 100) {
         nodes {
           content {
             ... on Issue { number title state url body }
