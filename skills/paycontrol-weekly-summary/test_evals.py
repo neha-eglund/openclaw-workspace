@@ -1,30 +1,18 @@
 """
-LLM-as-judge evals — scores a dry-run report output against quality criteria.
+LLM-as-judge evals for paycontrol-weekly-summary.
+Scores a dry-run report output against quality criteria.
 Requires ANTHROPIC_API_KEY and a saved report file.
 
 Run:
-    python3 tests/test_evals.py --file tests/logs/2026-05-21-11-58.log --skill summary
-    python3 tests/test_evals.py --file tests/logs/2026-05-21-11-58.log --skill feedback
+    python3 skills/paycontrol-weekly-summary/test_evals.py --file path/to/report.txt
 """
 import argparse, os, sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "tests"))
 from helpers import Runner, PASS, FAIL, SKIP
 
-CRITERIA_FEEDBACK = [
-    ("neutral_tone",      "The report is neutral and factual throughout — no personal opinions or emotional language."),
-    ("positive_framing",  "Untracked items are framed as opportunities or areas of improvement, not complaints."),
-    ("no_external_names", "No external company names, client names, or personal contact names appear in the report body."),
-    ("bold_headings",     "All section headings use Slack bold (*heading*) format."),
-    ("main_new_items",    "The main channel message contains only new items from this week's window, not cumulative history."),
-    ("thread1_wow",       "Thread reply 1 contains only the week-over-week comparison table and nothing else."),
-    ("thread2_questions", "Thread reply 2 contains open questions with possible GitHub issue links across the full history."),
-    ("thread3_poll",      "Thread reply 3 contains the feedback poll with 4 questions, Q4 being free text."),
-    ("no_raw_logins",     "No raw GitHub login handles appear — only full names."),
-    ("no_match_omitted",  "Items with no GitHub match do not include any 'no match found' text — the → line is absent."),
-    ("poll_structure_q",  "The poll's third question asks about report structure, not tone."),
-]
-
-CRITERIA_SUMMARY = [
+CRITERIA = [
     ("neutral_tone",       "The report is neutral and factual — no judgements about individuals or their work."),
     ("positive_framing",   "Stale items are framed as waiting for a decision, not as failures or neglect."),
     ("no_external_names",  "No external company names or personal contacts appear in the report."),
@@ -39,11 +27,10 @@ CRITERIA_SUMMARY = [
     ("no_raw_logins",      "No raw GitHub login handles appear — only full names like Apostolis Lipas."),
     ("plain_english",      "Cycle time and review time are described in plain English, not raw statistics like p50/p90."),
     ("recommendations",    "The board flow section ends with exactly 2 specific recommendations grounded in this week's data."),
-    ("poll_structure_q",   "The poll's third question asks about report structure, not tone."),
 ]
 
 
-def run_evals(report_text, skill, r):
+def run_evals(report_text, r):
     try:
         import anthropic
     except ImportError:
@@ -55,11 +42,10 @@ def run_evals(report_text, skill, r):
         print(f"\n{SKIP} Skipped — ANTHROPIC_API_KEY not set")
         return
 
-    criteria = CRITERIA_FEEDBACK if skill == "feedback" else CRITERIA_SUMMARY
     client = anthropic.Anthropic(api_key=api_key)
 
-    for criterion_id, criterion_text in criteria:
-        prompt = f"""You are evaluating a PayControl Slack report against a single criterion.
+    for criterion_id, criterion_text in CRITERIA:
+        prompt = f"""You are evaluating a PayControl weekly engineering summary Slack report against a single criterion.
 
 Criterion: {criterion_text}
 
@@ -91,13 +77,11 @@ Then on the next line: one sentence explaining why (max 15 words).
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--file", required=True, help="Path to dry-run report file")
-    parser.add_argument("--skill", choices=["feedback", "summary"], required=True)
     args = parser.parse_args()
 
     report_text = Path(args.file).read_text()
-    skill_label = "Customer Feedback" if args.skill == "feedback" else "Weekly Summary"
-    r = Runner(f"{skill_label} · Evals")
-    run_evals(report_text, args.skill, r)
+    r = Runner("Weekly Summary · Evals")
+    run_evals(report_text, r)
     sys.exit(0 if r.summary() else 1)
 
 
