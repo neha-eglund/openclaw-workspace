@@ -1,0 +1,46 @@
+name: Skills CI
+
+on:
+  push:
+    paths:
+      - "skills/**"
+  pull_request:
+    paths:
+      - "skills/**"
+
+jobs:
+  lint-typecheck-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install tools
+        run: pip install ruff mypy
+
+      - name: Lint (ruff)
+        run: |
+          ruff check skills/ \
+            --select E,W,F \
+            --ignore E401,E501
+
+      - name: Type check (mypy)
+        run: |
+          mypy skills/ \
+            --ignore-missing-imports \
+            --exclude "skills/.*/tests/" \
+            --no-error-summary
+
+      - name: Unit tests — paycontrol-customer-requirements
+        if: always()
+        working-directory: skills/paycontrol-customer-requirements/tests
+        run: python3 tests.py
+
+      - name: Unit tests — paycontrol-weekly-summary
+        if: always()
+        working-directory: skills/paycontrol-weekly-summary/tests
+        run: python3 tests.py

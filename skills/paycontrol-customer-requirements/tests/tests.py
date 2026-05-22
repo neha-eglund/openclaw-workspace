@@ -5,7 +5,6 @@ Run:
     python3 skills/paycontrol-customer-requirements/tests.py
 """
 import re, sys
-from pathlib import Path
 from helpers import Runner, SKILL_FEEDBACK, SCRIPTS_FEEDBACK, skill_contains, skill_or_scripts_contains
 
 _I  = re.IGNORECASE
