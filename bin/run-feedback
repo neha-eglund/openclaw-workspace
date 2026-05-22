@@ -37,6 +37,6 @@ echo "" >&2
 
 export SLACK_TOKEN GH_TOKEN DRY_RUN=true
 
-claude -p "Read the skill file at $SKILL and execute all instructions in it exactly as written.
+${AGENT:-claude} -p "Read the skill file at $SKILL and execute all instructions in it exactly as written.
 
 SLACK_TOKEN, GH_TOKEN, and DRY_RUN are already set in the environment — do not post to Slack."
