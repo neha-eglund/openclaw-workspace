@@ -12,6 +12,7 @@ Usage:
     python3 scripts/fetch_github.py
 """
 import json, re, subprocess, sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -90,28 +91,37 @@ Path(cfg.TMP_BOARD).write_text(json.dumps(board, indent=2))
 print(f"Board: {len(board)} items")
 
 
-# --- All issues (for semantic matching) + PR index ---
-all_issues = []
-all_prs = []
+# --- Fetch issues + PRs for all repos in parallel ---
 
-for repo, repo_name in REPOS:
-    print(f"Fetching issues from {repo}...")
-    raw = gh("issue", "list", "--repo", repo, "--state", "all", "--limit", "500",
-             "--json", "number,title,state,url,body,labels,assignees")
-    issues = json.loads(raw or "[]")
+def fetch_repo(repo, repo_name):
+    issues_raw = gh("issue", "list", "--repo", repo, "--state", "all", "--limit", "500",
+                    "--json", "number,title,state,url,body,labels,assignees")
+    issues = json.loads(issues_raw or "[]")
     for i in issues:
         i["body"] = (i.get("body") or "")[:BODY_LIMIT_ISSUE]
         i["repo"] = repo_name
-    all_issues.extend(issues)
 
-    print(f"Fetching PRs from {repo}...")
-    raw = gh("pr", "list", "--repo", repo, "--state", "all", "--limit", "200",
-             "--json", "number,title,body,state,url,closingIssuesReferences")
-    prs = json.loads(raw or "[]")
+    prs_raw = gh("pr", "list", "--repo", repo, "--state", "all", "--limit", "200",
+                 "--json", "number,title,body,state,url,closingIssuesReferences")
+    prs = json.loads(prs_raw or "[]")
     for pr in prs:
         pr["repo"] = repo_name
         pr["body"] = (pr.get("body") or "")[:BODY_LIMIT_PR]
-    all_prs.extend(prs)
+
+    print(f"  {repo_name}: {len(issues)} issues, {len(prs)} PRs")
+    return issues, prs
+
+
+all_issues = []
+all_prs = []
+
+print("Fetching issues + PRs for all repos in parallel...")
+with ThreadPoolExecutor(max_workers=len(REPOS)) as pool:
+    futures = {pool.submit(fetch_repo, repo, name): name for repo, name in REPOS}
+    for future in as_completed(futures):
+        issues, prs = future.result()
+        all_issues.extend(issues)
+        all_prs.extend(prs)
 
 Path(cfg.TMP_ALL_ISSUES).write_text(json.dumps(all_issues, indent=2))
 print(f"Total issues: {len(all_issues)}")

@@ -13,18 +13,33 @@ Usage:
     export SLACK_TOKEN=...
     python3 scripts/fetch_slack.py
 """
-import json, subprocess, sys
+import json, sys, urllib.request, urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import config as cfg
 
-token = cfg.SLACK_TOKEN
+token      = cfg.SLACK_TOKEN
 CHANNEL_ID = cfg.SLACK_CHANNEL_ID
 
-RESOLVED_REACTIONS    = {"white_check_mark", "heavy_check_mark"}
+RESOLVED_REACTIONS     = {"white_check_mark", "heavy_check_mark"}
 ACKNOWLEDGED_REACTIONS = {"+1", "thumbsup"}
+
+SLACK_API = "https://slack.com/api"
+
+
+def slack_get(endpoint, **params):
+    query = "&".join(f"{k}={v}" for k, v in params.items())
+    url = f"{SLACK_API}/{endpoint}?{query}"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+    try:
+        resp = urllib.request.urlopen(req, timeout=15)
+        return json.loads(resp.read())
+    except (urllib.error.URLError, json.JSONDecodeError) as e:
+        print(f"Warning: Slack {endpoint} failed: {e}", file=sys.stderr)
+        return {}
+
 
 # Determine oldest timestamp to fetch from
 oldest = "0"
@@ -32,32 +47,17 @@ if cfg.LAST_RUN_FILE.exists():
     oldest = json.loads(cfg.LAST_RUN_FILE.read_text()).get("last_ts", "0")
 print(f"Fetching since ts={oldest}")
 
-
-def slack_get(url, params=""):
-    result = subprocess.run(
-        ["curl", "-s", url + params, "-H", f"Authorization: Bearer {token}"],
-        capture_output=True, text=True
-    )
-    try:
-        return json.loads(result.stdout)
-    except json.JSONDecodeError as e:
-        print(f"Warning: failed to parse Slack response: {e}", file=sys.stderr)
-        return {}
-
-
 # Fetch messages
-resp = slack_get(
-    "https://slack.com/api/conversations.history",
-    f"?channel={CHANNEL_ID}&oldest={oldest}&limit=200"
-)
-messages = resp.get("messages", [])
+messages = slack_get(
+    "conversations.history", channel=CHANNEL_ID, oldest=oldest, limit=200
+).get("messages", [])
 Path(cfg.TMP_MESSAGES).write_text(json.dumps(messages, indent=2))
 print(f"Messages fetched: {len(messages)}")
 
 # Derive window dates
 today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
 if messages:
-    oldest_ts = min(float(m['ts']) for m in messages)
+    oldest_ts  = min(float(m['ts']) for m in messages)
     since_date = datetime.utcfromtimestamp(oldest_ts).strftime('%Y-%m-%d')
 else:
     since_date = today
@@ -82,11 +82,10 @@ threads = {}
 for m in messages:
     if m.get("reply_count", 0) > 0:
         ts = m["ts"]
-        resp = slack_get(
-            "https://slack.com/api/conversations.replies",
-            f"?channel={CHANNEL_ID}&ts={ts}"
-        )
-        threads[ts] = resp.get("messages", [])[1:]  # skip parent
+        replies = slack_get(
+            "conversations.replies", channel=CHANNEL_ID, ts=ts
+        ).get("messages", [])
+        threads[ts] = replies[1:]  # skip parent
 Path(cfg.TMP_THREADS).write_text(json.dumps(threads, indent=2))
 print(f"Threads fetched: {len(threads)}")
 
