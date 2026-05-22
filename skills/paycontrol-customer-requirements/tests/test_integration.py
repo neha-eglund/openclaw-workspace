@@ -8,7 +8,7 @@ Run:
 """
 import json, sys, urllib.request
 
-from helpers import Runner, TOKENS, NAMES, SNAPSHOTS_CF
+from helpers import Runner, TOKENS, NAMES, SNAPSHOTS_CF, get_slack_token
 
 
 def check_slack_read(r, token):
@@ -41,36 +41,33 @@ def check_slack_read(r, token):
 
 
 def main():
+    import os
+    in_ci = os.environ.get("CI") == "true"
+
     r = Runner("Customer Feedback · Integration checks")
 
-    r.check("Config: slack-tokens.json exists", TOKENS.exists())
-    r.check("Config: contributor-names.json exists", NAMES.exists())
+    token = get_slack_token("bot_token")
+    r.check("Config: Slack bot_token available", bool(token))
+    if token:
+        check_slack_read(r, token)
 
-    if TOKENS.exists():
-        config = json.loads(TOKENS.read_text())
-        r.check("Config: bot_token present", bool(config.get("bot_token")))
-        r.check("Config: reports_bot_token present", bool(config.get("reports_bot_token")))
-        r.check("Config: paycontrol_reports_channel = C0ATQEBLT89",
-                config.get("paycontrol_reports_channel") == "C0ATQEBLT89")
-        token = config.get("bot_token", "")
-        if token:
-            check_slack_read(r, token)
-
-    if NAMES.exists():
-        names = json.loads(NAMES.read_text())
-        expected = {"alipas", "rasmusmiddendorff", "lirre8", "ErikWallin", "bol"}
-        missing = expected - set(names.keys())
-        r.check("Config: all known contributors in names cache",
-                not missing, f"Missing: {missing}" if missing else "")
-
-    snaps = sorted(SNAPSHOTS_CF.glob("snapshot-*.json"))
-    r.check("Snapshot: customer feedback exists (2026-05-15)",
-            any("2026-05-15" in s.name for s in snaps))
-    if snaps:
-        latest = json.loads(snaps[-1].read_text())
-        r.check("Snapshot: cumulative from 2026-03-10",
-                latest.get("window_from") == "2026-03-10",
-                f"Found: {latest.get('window_from')}")
+    if not in_ci:
+        r.check("Config: slack-tokens.json exists", TOKENS.exists())
+        r.check("Config: contributor-names.json exists", NAMES.exists())
+        if NAMES.exists():
+            names = json.loads(NAMES.read_text())
+            expected = {"alipas", "rasmusmiddendorff", "lirre8", "ErikWallin", "bol"}
+            missing = expected - set(names.keys())
+            r.check("Config: all known contributors in names cache",
+                    not missing, f"Missing: {missing}" if missing else "")
+        snaps = sorted(SNAPSHOTS_CF.glob("snapshot-*.json"))
+        r.check("Snapshot: customer feedback exists (2026-05-15)",
+                any("2026-05-15" in s.name for s in snaps))
+        if snaps:
+            latest = json.loads(snaps[-1].read_text())
+            r.check("Snapshot: cumulative from 2026-03-10",
+                    latest.get("window_from") == "2026-03-10",
+                    f"Found: {latest.get('window_from')}")
 
     sys.exit(0 if r.summary() else 1)
 

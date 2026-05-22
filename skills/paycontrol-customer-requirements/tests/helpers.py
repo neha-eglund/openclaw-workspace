@@ -27,11 +27,21 @@ def skill_or_scripts_contains(skill_path, scripts_dir, pattern, flags=0):
 
 
 def get_gh_token():
+    if tok := os.environ.get("GH_TOKEN"):
+        return tok
     try:
         d = json.loads(Path(os.path.expanduser("~/.openclaw/openclaw.json")).read_text())
         return d["env"]["vars"]["GH_TOKEN"]
     except Exception:
         return None
+
+
+def get_slack_token(key="bot_token"):
+    if key == "bot_token" and (tok := os.environ.get("SLACK_TOKEN")):
+        return tok
+    if TOKENS.exists():
+        return json.loads(TOKENS.read_text()).get(key, "")
+    return ""
 
 
 class Runner:

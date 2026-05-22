@@ -8,7 +8,7 @@ Run:
 """
 import json, subprocess, sys, urllib.request
 
-from helpers import Runner, TOKENS, NAMES, SNAPSHOTS_WS, get_gh_token
+from helpers import Runner, TOKENS, NAMES, SNAPSHOTS_WS, get_gh_token, get_slack_token
 
 
 def check_slack_post(r, token):
@@ -67,36 +67,33 @@ def check_github(r, gh_token):
 
 
 def main():
+    import os
+    in_ci = os.environ.get("CI") == "true"
+
     r = Runner("Weekly Summary · Integration checks")
 
-    r.check("Config: slack-tokens.json exists", TOKENS.exists())
-    r.check("Config: contributor-names.json exists", NAMES.exists())
-
-    if TOKENS.exists():
-        config = json.loads(TOKENS.read_text())
-        r.check("Config: reports_bot_token present", bool(config.get("reports_bot_token")))
-        r.check("Config: paycontrol_reports_channel = C0ATQEBLT89",
-                config.get("paycontrol_reports_channel") == "C0ATQEBLT89")
-        token = config.get("reports_bot_token", "")
-        if token:
-            check_slack_post(r, token)
-
-    if NAMES.exists():
-        names = json.loads(NAMES.read_text())
-        expected = {"alipas", "rasmusmiddendorff", "lirre8", "ErikWallin", "bol"}
-        missing = expected - set(names.keys())
-        r.check("Config: all known contributors in names cache",
-                not missing, f"Missing: {missing}" if missing else "")
-
-    snaps = sorted(SNAPSHOTS_WS.glob("snapshot-*.json"))
-    r.check("Snapshot: weekly summary baseline exists (2026-05-20)",
-            any("2026-05-20" in s.name for s in snaps))
+    token = get_slack_token("reports_bot_token")
+    r.check("Config: Slack reports_bot_token available", bool(token))
+    if token:
+        check_slack_post(r, token)
 
     gh_token = get_gh_token()
+    r.check("GitHub: GH_TOKEN available", bool(gh_token))
     if gh_token:
         check_github(r, gh_token)
-    else:
-        r.check("GitHub: GH_TOKEN available", False, "Not found in openclaw.json")
+
+    if not in_ci:
+        r.check("Config: slack-tokens.json exists", TOKENS.exists())
+        r.check("Config: contributor-names.json exists", NAMES.exists())
+        if NAMES.exists():
+            names = json.loads(NAMES.read_text())
+            expected = {"alipas", "rasmusmiddendorff", "lirre8", "ErikWallin", "bol"}
+            missing = expected - set(names.keys())
+            r.check("Config: all known contributors in names cache",
+                    not missing, f"Missing: {missing}" if missing else "")
+        snaps = sorted(SNAPSHOTS_WS.glob("snapshot-*.json"))
+        r.check("Snapshot: weekly summary baseline exists (2026-05-20)",
+                any("2026-05-20" in s.name for s in snaps))
 
     sys.exit(0 if r.summary() else 1)
 

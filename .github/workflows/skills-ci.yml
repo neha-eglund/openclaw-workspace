@@ -44,3 +44,20 @@ jobs:
         if: always()
         working-directory: skills/paycontrol-weekly-summary/tests
         run: python3 tests.py
+
+      - name: Integration tests — paycontrol-customer-requirements
+        if: always()
+        working-directory: skills/paycontrol-customer-requirements/tests
+        env:
+          CI: "true"
+          SLACK_TOKEN: ${{ secrets.SLACK_TOKEN }}
+        run: python3 test_integration.py
+
+      - name: Integration tests — paycontrol-weekly-summary
+        if: always()
+        working-directory: skills/paycontrol-weekly-summary/tests
+        env:
+          CI: "true"
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          SLACK_TOKEN: ${{ secrets.SLACK_TOKEN }}
+        run: python3 test_integration.py
