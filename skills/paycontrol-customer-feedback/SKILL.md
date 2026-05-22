@@ -5,7 +5,7 @@ description: "Reads #paycontrol-feedback Slack channel since last run (or from c
 
 # PayControl Customer Requirements Report
 
-Slack channel: `#paycontrol-feedback` (ID: `C0AKQRQ6QDA`)
+Slack channel: `#paycontrol-feedback` (ID: `$SLACK_CHANNEL_ID`)
 GitHub Project: `PayControlLimited/projects/1`
 Output: structured feedback report posted to webchat + Slack `#paycontrol-reports`
 Window: since last run (snapshot-driven); first run fetches all messages from channel start
@@ -36,12 +36,16 @@ Window: since last run (snapshot-driven); first run fetches all messages from ch
 
 ## Workflow
 
-### Step 1 — Set credentials
+### Step 1 — Set credentials and channel IDs
 
 ```bash
 export SLACK_TOKEN=$(python3 -c "import json; print(json.load(open('/Users/nehaeglund/.openclaw/workspace/config/slack-tokens.json'))['bot_token'])")
 export GH_TOKEN=$(python3 -c "import json; print(json.load(open('/Users/nehaeglund/.openclaw/openclaw.json'))['env']['vars']['GH_TOKEN'])")
+export SLACK_CHANNEL_ID=$(python3 -c "import json; print(json.load(open('/Users/nehaeglund/.openclaw/workspace/config/slack-tokens.json'))['paycontrol_feedback_channel'])")
+export REPORTS_CHANNEL_ID=$(python3 -c "import json; print(json.load(open('/Users/nehaeglund/.openclaw/workspace/config/slack-tokens.json'))['paycontrol_reports_channel'])")
 ```
+
+Use `$SLACK_CHANNEL_ID` for all reads from the feedback channel and `$REPORTS_CHANNEL_ID` for all posts to the reports channel. Never hardcode channel IDs in API calls.
 
 ### Step 2 — Fetch Slack messages
 
@@ -272,7 +276,7 @@ Deduplicate by summary. Exclude items resolved or tracked in a later run.
 
 ## Notes
 
-- Feedback channel ID: `C0AKQRQ6QDA` (private, bot is member)
+- Feedback channel ID: loaded from `config/slack-tokens.json` → `paycontrol_feedback_channel` (set as `$SLACK_CHANNEL_ID` in Step 1)
 - Reaction-based triage: ✅ = Resolved, 👍 = Tracked. Both override GitHub matching. ✅ takes priority over 👍. Requires `reactions:read` scope.
 - False matches are worse than no match — prefer `❌ Untracked` when unsure
 - If `read:project` scope is missing, skip Step 3 and mark all items as `❌ Untracked (project unavailable)`
