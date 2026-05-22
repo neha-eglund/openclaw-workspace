@@ -6,11 +6,12 @@ Tests for the two PayControl cron skills: `paycontrol-customer-feedback` and `pa
 
 ```bash
 # Per-skill static checks — run these when you edit a skill
-python3 skills/paycontrol-customer-feedback/tests.py
-python3 skills/paycontrol-weekly-summary/tests.py
+python3 skills/paycontrol-customer-feedback/tests/tests.py
+python3 skills/paycontrol-weekly-summary/tests/tests.py
 
 # Integration checks — Slack + GitHub APIs (requires internet)
-python3 tests/test_integration.py
+python3 skills/paycontrol-customer-feedback/tests/test_integration.py
+python3 skills/paycontrol-weekly-summary/tests/test_integration.py
 
 # Evals — score a saved dry-run report with LLM-as-judge
 python3 tests/test_evals.py --file tests/logs/2026-05-21-11-58.log --skill summary
@@ -21,15 +22,16 @@ python3 tests/test_evals.py --file tests/logs/2026-05-21-11-58.log --skill feedb
 
 ## Test files
 
-Static checks live inside each skill directory so they can be committed and updated independently:
+Each skill has its own `tests/` subdirectory so tests can be committed and updated independently:
 
 | File | What it tests | Speed |
 |---|---|---|
-| `skills/paycontrol-customer-feedback/tests.py` | Customer feedback skill — static checks | Instant |
-| `skills/paycontrol-weekly-summary/tests.py` | Weekly summary skill — static checks | Instant |
-| `tests/test_integration.py` | Slack + GitHub API connectivity + config | ~5s |
+| `skills/paycontrol-customer-feedback/tests/tests.py` | Customer feedback skill — static checks | Instant |
+| `skills/paycontrol-customer-feedback/tests/test_integration.py` | Feedback skill — Slack + GitHub connectivity | ~5s |
+| `skills/paycontrol-weekly-summary/tests/tests.py` | Weekly summary skill — static checks | Instant |
+| `skills/paycontrol-weekly-summary/tests/test_integration.py` | Summary skill — GitHub connectivity | ~5s |
+| `skills/*/tests/helpers.py` | Shared utilities per skill — imported by test files | — |
 | `tests/test_evals.py` | LLM-as-judge quality scoring of a saved report | ~30s |
-| `tests/helpers.py` | Shared utilities — imported by all test files | — |
 
 ---
 
@@ -48,17 +50,21 @@ Examples of what it checks:
 
 **When to run:** Any time you edit a `SKILL.md` file. If you accidentally remove a critical instruction, this catches it immediately.
 
+These also run automatically on every push or PR that touches `skills/` via the GitHub Actions CI pipeline (`.github/workflows/skills-ci.yml`).
+
 ### Layer 2 — Integration checks
 
-Calls the real APIs to verify the environment is correctly wired up. Requires internet access and valid credentials in `config/`.
+Calls the real APIs to verify the environment is correctly wired up. Requires internet access and valid credentials.
 
 What it checks:
 - `slack-tokens.json` exists and the bot token is valid (`auth.test`)
 - `#paycontrol-feedback` is readable by the bot (`channels:history` scope)
 - `#paycontrol-reports` is accessible and the bot is a member
 - GitHub token can reach all three PayControl repos and the project board
-- All 5 known contributor logins are in `contributor-names.json`
+- All known contributor logins are in `contributor-names.json`
 - Snapshot files exist so week-over-week deltas will work on the next run
+
+In CI the tests read tokens from `SLACK_TOKEN` and `GH_TOKEN` environment variables (set as GitHub Actions secrets). Locally they read from `config/slack-tokens.json` and `~/.openclaw/openclaw.json`.
 
 **When to run:** After changing credentials, adding a new Slack bot, or setting up the workspace on a new machine.
 
@@ -81,14 +87,20 @@ Example criteria it checks:
 
 **When to run:** After a dry-run to verify the report quality before enabling Slack posting, or when you've made significant changes to the report format.
 
-To generate a dry-run report to eval, run the skill with `DRY_RUN = True` in the posting step and save the webchat output to a file.
+To generate a dry-run report to eval:
+
+```bash
+export DRY_RUN=true
+# then invoke the skill normally — output is printed to stdout instead of posting to Slack
+```
 
 ---
 
 ## Credentials required for Layer 2
 
-| File | What it's used for |
-|---|---|
-| `config/slack-tokens.json` | Bot token for Slack API calls |
-| `config/contributor-names.json` | Login → full name cache |
-| `~/.openclaw/openclaw.json` | GitHub token (`GH_TOKEN`) |
+| Credential | Where it lives | Used for |
+|---|---|---|
+| `bot_token` | `config/slack-tokens.json` | Reading `#paycontrol-feedback` |
+| `reports_bot_token` | `config/slack-tokens.json` | Posting to `#paycontrol-reports` |
+| `GH_TOKEN` | `~/.openclaw/openclaw.json` → `env.vars.GH_TOKEN` | GitHub API calls |
+| `contributor-names.json` | `config/contributor-names.json` | Login → full name cache |

@@ -5,8 +5,8 @@ Personal OpenClaw agent workspace for automating engineering reports, security a
 ## What's in here
 
 ```
-skills/                          # Agent skill definitions
-  paycontrol-customer-feedback/  # Weekly customer feedback triage
+skills/                              # Agent skill definitions
+  paycontrol-customer-feedback/      # Weekly customer feedback triage
   paycontrol-weekly-summary/         # Weekly engineering dashboard
   github-pentest/                    # GitHub security pen-testing
   github-pr-review/                  # Automated PR reviews
@@ -15,18 +15,20 @@ skills/                          # Agent skill definitions
   github-security-updates/           # Security dependency update checks
   slack-format/                      # Slack mrkdwn formatting helper
 
-config/                          # Configuration (secrets excluded from git)
+config/                              # Configuration (secrets excluded from git)
   slack-tokens.example.json          # Template — copy to slack-tokens.json and fill in
-  slack-webhooks.example.json        # Template — copy to slack-webhooks.json and fill in
+                                     #   Keys: bot_token, reports_bot_token,
+                                     #         paycontrol_feedback_channel,
+                                     #         paycontrol_reports_channel
 
-memory/                          # Claude persistent memory files
-AGENTS.md                        # Agent identity and behaviour guidelines
-HEARTBEAT.md                     # Heartbeat task configuration
-IDENTITY.md                      # Agent identity
-SOUL.md                          # Agent values and principles
-TOOLS.md                         # Tool usage guidelines
-USER.md                          # User profile for Claude
-paycontrol-automated-reports.md  # Full documentation of the two cron jobs
+memory/                              # Claude persistent memory files
+AGENTS.md                            # Agent identity and behaviour guidelines
+HEARTBEAT.md                         # Heartbeat task configuration
+IDENTITY.md                          # Agent identity
+SOUL.md                              # Agent values and principles
+TOOLS.md                             # Tool usage guidelines
+USER.md                              # User profile for Claude
+paycontrol-automated-reports.md      # Full documentation of the two cron jobs
 ```
 
 ## Automated Cron Jobs
@@ -42,9 +44,30 @@ See [paycontrol-automated-reports.md](paycontrol-automated-reports.md) for full 
 
 ## Skills
 
-Each skill is a folder containing a `SKILL.md` file that defines the agent's behaviour for that task. Skills are invoked by OpenClaw agents and can be customised by editing the `SKILL.md`.
+Each skill is a self-contained folder with:
+- `SKILL.md` — agent instructions
+- `scripts/` — Python scripts for data fetching, snapshot saving, and Slack posting
+- `tests/` — static checks, integration tests, and LLM eval tests
 
-To edit a skill, open `skills/<skill-name>/SKILL.md` and modify the instructions. Changes take effect on the next agent run.
+To edit a skill, open `skills/<skill-name>/SKILL.md`. Changes take effect on the next agent run.
+
+## CI Pipeline
+
+A GitHub Actions workflow (`.github/workflows/skills-ci.yml`) runs on every push or PR that touches `skills/`. It runs:
+
+1. **Lint** — `ruff` (E/W/F rules)
+2. **Type check** — `mypy` per skill
+3. **Unit tests** — static checks for both skills
+4. **Integration tests** — Slack + GitHub API connectivity (uses `GH_TOKEN` and `SLACK_TOKEN` secrets)
+
+## Dry Run
+
+Both skills support `DRY_RUN=true` — the full pipeline runs but Slack posting is skipped and the report is printed to stdout instead:
+
+```bash
+export DRY_RUN=true
+# then invoke the skill normally
+```
 
 ## Setup
 
@@ -59,10 +82,15 @@ cd openclaw-workspace
 
 ```bash
 cp config/slack-tokens.example.json config/slack-tokens.json
-cp config/slack-webhooks.example.json config/slack-webhooks.json
 ```
 
-Edit both files and fill in your actual tokens. These files are gitignored and will never be committed.
+Edit the file and fill in your actual tokens. This file is gitignored and will never be committed.
+
+Required keys:
+- `bot_token` — reads `#paycontrol-feedback`
+- `reports_bot_token` — posts to `#paycontrol-reports`
+- `paycontrol_feedback_channel` — channel ID for `#paycontrol-feedback`
+- `paycontrol_reports_channel` — channel ID for `#paycontrol-reports`
 
 ### 3. Set GitHub token
 
@@ -71,17 +99,18 @@ The GitHub token (`GH_TOKEN`) is stored in the OpenClaw gateway config at:
 ~/.openclaw/openclaw.json → env.vars.GH_TOKEN
 ```
 
-### 4. Open in VS Code
+### 4. Register cron jobs
 
 ```bash
-code .
+chmod +x crons/setup.sh
+./crons/setup.sh
 ```
 
 ## Customising the reports
 
 ### Change what the weekly summary includes
 
-Edit `skills/paycontrol-weekly-summary/SKILL.md` — the prompt template controls exactly what data is collected, how it is formatted, and what gets highlighted.
+Edit `skills/paycontrol-weekly-summary/SKILL.md` — the prompt template controls what data is collected, how it is formatted, and what gets highlighted.
 
 ### Change the customer feedback classification
 
@@ -89,18 +118,18 @@ Edit `skills/paycontrol-customer-feedback/SKILL.md` — the classification schem
 
 ### Add a new repo to the weekly summary
 
-In the cron job prompt (manageable via OpenClaw UI), add the new repo to the repo list at the top.
+Set the `REPOS` environment variable (comma-separated) before running, or update the default in `skills/paycontrol-weekly-summary/scripts/config.py`.
 
 ### Reprocess full Slack history
 
-Clear the snapshot file before the Friday run:
+Clear the last-run file before the Friday run:
 ```bash
-echo '{}' > ~/.openclaw/workspace/nightly-results/customer-feedback/last-run.json
+echo '{"last_ts": "0"}' > ~/.openclaw/workspace/nightly-results/customer-feedback/last-run.json
 ```
 
 ## Requirements
 
 - [OpenClaw](https://openclaw.dev) installed and running
 - `gh` CLI authenticated with `repo` and `read:org` scopes
-- Slack bot with `channels:history` scope, member of `#paycontrol-feedback`
-- Incoming webhook for `#paycontrol-reports`
+- Slack bot token with `channels:history`, `reactions:read`, and `users:read` scopes, member of `#paycontrol-feedback`
+- Slack bot token with `chat:write` scope for posting to `#paycontrol-reports`

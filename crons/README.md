@@ -12,7 +12,7 @@ This folder contains the configuration for the two PayControl automated cron job
 1. Fill in credentials:
    ```bash
    cp config/slack-tokens.example.json config/slack-tokens.json
-   # Edit both files with real tokens
+   # Edit the file with real tokens
    ```
 
 2. Set GitHub token in `~/.openclaw/openclaw.json` under `env.vars.GH_TOKEN`, or export it:
