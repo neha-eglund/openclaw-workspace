@@ -1,0 +1,71 @@
+PayControl Skill Test Suite — 2026-05-21 11:59
+========================================
+
+── Customer Feedback · Static checks ──
+  ✅ 1.  Posts via chat.postMessage (not webhook)
+  ✅ 2.  Threading — thread_ts used for replies
+  ✅ 3.  Channel loaded from paycontrol_reports_channel config
+  ✅ 4.  Main message = new items this week only
+  ✅ 5.  Thread 1 = week-over-week table only
+  ✅ 6.  Thread 2 = open questions cumulative (all untracked, not just this week)
+  ✅ 7.  Thread 3 = feedback poll
+  ✅ 8.  Snapshots are cumulative from channel start
+  ✅ 9.  All headings bold instruction present
+  ✅ 10. contributor-names.json loaded for worked_on_by
+  ✅ 11. GitHub API fallback for unknown logins
+  ✅ 12. Slack users.info for poster real name
+  ✅ 13. Bulk semantic matching — 500 issues fetched
+  ✅ 14. Reactions: ✅ = Resolved, 👍 = Tracked
+  ✅ 15. Voice/PDF/Word attachments handled
+  ✅ 16. Supplement files read each run
+  ✅ 17. Tone: neutral, no personal opinions
+  ✅ 18. Tone: untracked items framed as opportunities
+  ✅ 19. Tone: no external names or company names
+  ✅ 20. No-match line suppressed (omit the → line, no fallback text)
+  ✅ 21. Question line: neutral gap description
+  ✅ 22. Conclusion/Opportunity line: positive next step
+  ✅ 23. Poll: reads last week's reactions before posting
+  ✅ 24. Poll: Q1–Q3 have pre-added emoji reactions
+  ✅ 25. Poll: Q3 asks about structure (not tone)
+  ✅ 26. Poll: Q4 is free-text (Reply in this thread)
+  ✅ 27. Poll: saves ts to polls/ directory
+  ✅ 28. DRY_RUN flag raises SystemExit before any Slack posting
+
+── Weekly Summary · Static checks ──
+  ✅ 1.  Posts via chat.postMessage (not webhook)
+  ✅ 2.  Threading — thread_ts used for replies
+  ✅ 3.  Channel loaded from paycontrol_reports_channel config
+  ✅ 4.  Main message includes team spotlights
+  ✅ 5.  Main message includes key deliveries
+  ✅ 6.  Main message includes 🔴 blockers only under Needs Attention
+  ✅ 7.  Thread 1 = week-over-week snapshot
+  ✅ 8.  Thread 2 = stale items + action items + contributors
+  ✅ 9.  Thread 3 = board flow
+  ✅ 10. Thread 4 = PR tracking (tracked vs untracked)
+  ✅ 11. Thread 5 = feedback poll
+  ✅ 12. Board flow: Done this week section
+  ✅ 13. Board flow: P0 in flight
+  ✅ 14. Board flow: stale in flight (In Progress/Review only, not Todo)
+  ✅ 15. Board flow: cycle time in plain English
+  ✅ 16. Board flow: time to first review in plain English
+  ✅ 17. Board flow: WIP per person
+  ✅ 18. Board flow: throughput trend (4 weeks bar chart)
+  ✅ 19. Board flow: exactly 2 recommendations
+  ✅ 20. PR tracking: untracked PRs listed
+  ✅ 21. PR tracking: per-person table (tracked/untracked/total)
+  ✅ 22. Name resolution runs before webchat output
+  ✅ 23. contributor-names.json cache loaded
+  ✅ 24. GitHub API fallback for unknown logins
+  ✅ 25. Posting uses threading not background shell processes
+  ✅ 26. Tone: neutral and positive framing
+  ✅ 27. Tone: stale items not described as failures
+  ✅ 28. Tone: no external names
+  ✅ 29. Poll: reads last week's reactions before posting
+  ✅ 30. Poll: Q1–Q3 have pre-added emoji reactions
+  ✅ 31. Poll: Q3 asks about structure (not tone)
+  ✅ 32. Poll: Q4 is free-text (Reply in this thread)
+  ✅ 33. Poll: saves ts to polls/ directory
+  ✅ 34. DRY_RUN flag raises SystemExit before any Slack posting
+
+========================================
+Results: 62/62 passed

@@ -19,9 +19,23 @@ Output: cross-repo dashboard + per-repo mini cards, chart PNG, posted to webchat
 
 ```bash
 export GH_TOKEN=$(python3 -c "import json; print(json.load(open('/Users/nehaeglund/.openclaw/openclaw.json'))['env']['vars']['GH_TOKEN'])")
-SINCE=$(date -u -v-7d +%Y-%m-%dT%H:%M:%SZ)
-TODAY=$(date +%Y-%m-%d)
-SINCE_DATE=$(date -u -v-7d +%Y-%m-%d)
+```
+
+```python
+from datetime import datetime, timezone, timedelta
+now = datetime.now(timezone.utc)
+since_dt = now - timedelta(days=7)
+TODAY = now.strftime('%Y-%m-%d')
+SINCE_DATE = since_dt.strftime('%Y-%m-%d')
+SINCE = since_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+print(f"Window: {SINCE_DATE} -> {TODAY}")
+```
+
+Then export these as shell variables for use in subsequent bash commands:
+```bash
+TODAY=$(python3 -c "from datetime import datetime,timezone; print(datetime.now(timezone.utc).strftime('%Y-%m-%d'))")
+SINCE_DATE=$(python3 -c "from datetime import datetime,timezone,timedelta; print((datetime.now(timezone.utc)-timedelta(days=7)).strftime('%Y-%m-%d'))")
+SINCE=$(python3 -c "from datetime import datetime,timezone,timedelta; print((datetime.now(timezone.utc)-timedelta(days=7)).strftime('%Y-%m-%dT%H:%M:%SZ'))")
 echo "Window: $SINCE_DATE -> $TODAY"
 ```
 

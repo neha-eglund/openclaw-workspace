@@ -1,0 +1,69 @@
+PayControl Skill Test Suite — 2026-05-21 10:18
+========================================
+
+── Customer Feedback · Static checks ──
+  ✅ 1.  Posts via chat.postMessage (not webhook)
+  ✅ 2.  Threading — thread_ts used for replies
+  ✅ 3.  Channel ID C0ATQEBLT89 present
+  ✅ 4.  Main message is short summary only
+  ✅ 5.  Thread 1 includes item breakdown + week-over-week
+  ✅ 6.  Thread 2 is open questions only
+  ✅ 7.  All headings bold instruction present
+  ✅ 8.  Snapshots are cumulative from channel start
+  ✅ 9.  contributor-names.json loaded for worked_on_by
+  ✅ 10. GitHub API fallback for unknown logins
+  ✅ 11. Slack users.info for poster real name
+  ✅ 12. Bulk semantic matching — 500 issues fetched
+  ✅ 13. Reactions: ✅ = Resolved, 👍 = Tracked
+  ✅ 14. Voice/PDF/Word attachments handled
+  ✅ 15. Supplement files read each run
+  ✅ 16. Tone: neutral, no personal opinions
+  ✅ 17. Tone: untracked items framed as opportunities
+  ✅ 18. Tone: no external names or company names
+  ✅ 19. No-match line suppressed (omit the → line, no fallback text)
+  ✅ 20. Question line: neutral gap description
+  ✅ 21. Conclusion/Opportunity line: positive next step
+  ✅ 22. Poll: reads last week's reactions before posting
+  ✅ 23. Poll: posts 3 questions with pre-added reactions
+  ✅ 24. Poll: saves ts to polls/ directory
+
+── Weekly Summary · Static checks ──
+  ✅ 1.  Posts via chat.postMessage (not webhook)
+  ✅ 2.  Threading — thread_ts used for replies
+  ✅ 3.  Channel ID C0ATQEBLT89 present
+  ✅ 4.  Main message includes team spotlights
+  ✅ 5.  Main message includes key deliveries
+  ✅ 6.  Main message includes 🔴 blockers only
+  ✅ 7.  Thread 1: full stale list
+  ✅ 8.  Thread 2: action items + contributors
+  ✅ 9.  Thread 3: week-over-week
+  ✅ 10. Name resolution runs before webchat output
+  ✅ 11. contributor-names.json cache loaded
+  ✅ 12. GitHub API fallback for unknown logins
+  ✅ 13. Posting uses threading not background shell processes
+  ✅ 14. Tone: neutral and positive framing
+  ✅ 15. Tone: stale items not described as failures
+  ✅ 16. Tone: no external names
+  ✅ 17. Poll: reads last week's reactions before posting
+  ✅ 18. Poll: posts 3 questions with pre-added reactions
+  ✅ 19. Poll: saves ts to polls/ directory
+
+── Integration checks ──
+  ✅ Config: slack-tokens.json exists
+  ✅ Config: contributor-names.json exists
+  ✅ Config: bot_token present
+  ✅ Config: paycontrol_reports_channel = C0ATQEBLT89
+  ✅ Slack: bot token valid
+  ✅ Slack: #paycontrol-feedback readable (channels:history scope)
+  ✅ Slack: #paycontrol-reports accessible (bot is member)
+  ✅ Slack: chat:write scope (needed for threading)
+  ✅ Config: all known contributors in names cache
+  ✅ Snapshot: customer feedback baseline exists (2026-05-15)
+  ✅ Snapshot: customer feedback current week exists (2026-05-20)
+  ✅ Snapshot: customer feedback is cumulative (window_from = 2026-03-10)
+  ✅ Snapshot: weekly summary baseline exists (2026-05-20)
+  ✅ GitHub: PayControl repo accessible
+  ✅ GitHub: project board accessible (read:project scope)
+
+========================================
+Results: 58/58 passed
