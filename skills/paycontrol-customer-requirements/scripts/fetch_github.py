@@ -12,6 +12,9 @@ Usage:
     python3 scripts/fetch_github.py
 """
 import json, re, subprocess, sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent))
+import config as cfg
 
 REPOS = [
     ("PayControlLimited/PayControl",        "PayControl"),
@@ -73,7 +76,7 @@ if board_raw:
             "status": status,
         })
 
-json.dump(board, open('/tmp/cf_board.json', 'w'), indent=2)
+json.dump(board, open(cfg.TMP_BOARD, 'w'), indent=2)
 print(f"Board: {len(board)} items")
 
 
@@ -100,7 +103,7 @@ for repo, repo_name in REPOS:
         pr["body"] = (pr.get("body") or "")[:300]
     all_prs.extend(prs)
 
-json.dump(all_issues, open('/tmp/cf_all_issues.json', 'w'), indent=2)
+json.dump(all_issues, open(cfg.TMP_ALL_ISSUES, 'w'), indent=2)
 print(f"Total issues: {len(all_issues)}")
 
 # Build issue -> PR index
@@ -121,6 +124,6 @@ for pr in all_prs:
                    for e in existing):
             existing.append(entry)
 
-json.dump(issue_to_prs, open('/tmp/cf_issue_to_prs.json', 'w'), indent=2)
+json.dump(issue_to_prs, open(cfg.TMP_ISSUE_PRS, 'w'), indent=2)
 print(f"PR index: {len(issue_to_prs)} issues with linked PRs")
 print("fetch_github.py done.")

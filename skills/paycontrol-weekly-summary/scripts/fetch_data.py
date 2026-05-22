@@ -12,6 +12,9 @@ Usage:
 """
 import json, os, subprocess, sys
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent))
+import config as cfg
 
 REPOS = [
     "PayControlLimited/PayControl",
@@ -26,7 +29,7 @@ SINCE_DATE = since_dt.strftime('%Y-%m-%d')
 SINCE = since_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 print(f"Window: {SINCE_DATE} -> {TODAY}")
 json.dump({"today": TODAY, "since_date": SINCE_DATE, "since": SINCE},
-          open('/tmp/ws_window.json', 'w'))
+          open(cfg.TMP_WINDOW, 'w'))
 
 
 def gh(*args):
@@ -85,7 +88,7 @@ if board_raw:
             "status": status,
         })
 
-json.dump(board_items, open('/tmp/ws_board.json', 'w'), indent=2)
+json.dump(board_items, open(cfg.TMP_BOARD, 'w'), indent=2)
 print(f"Board: {len(board_items)} items")
 
 
@@ -97,21 +100,21 @@ for repo in REPOS:
     closed_issues = gh("issue", "list", "--repo", repo, "--state", "closed",
                        "--limit", "100", "--search", f"closed:>={SINCE_DATE}",
                        "--json", "number,title,closedAt,author,labels")
-    json.dump(json.loads(closed_issues or "[]"), open(f'/tmp/ws_closed_issues_{key}.json', 'w'))
+    json.dump(json.loads(closed_issues or "[]"), open(f'{cfg.TMP_REPO_PREFIX}closed_issues_{key}.json', 'w'))
 
     open_issues = gh("issue", "list", "--repo", repo, "--state", "open",
                      "--limit", "200",
                      "--json", "number,title,createdAt,updatedAt,assignees,labels")
-    json.dump(json.loads(open_issues or "[]"), open(f'/tmp/ws_open_issues_{key}.json', 'w'))
+    json.dump(json.loads(open_issues or "[]"), open(f'{cfg.TMP_REPO_PREFIX}open_issues_{key}.json', 'w'))
 
     merged_prs = gh("pr", "list", "--repo", repo, "--state", "merged",
                     "--limit", "100", "--search", f"merged:>={SINCE_DATE}",
                     "--json", "number,title,createdAt,mergedAt,author,labels,additions,deletions,body")
-    json.dump(json.loads(merged_prs or "[]"), open(f'/tmp/ws_merged_prs_{key}.json', 'w'))
+    json.dump(json.loads(merged_prs or "[]"), open(f'{cfg.TMP_REPO_PREFIX}merged_prs_{key}.json', 'w'))
 
     open_prs = gh("pr", "list", "--repo", repo, "--state", "open",
                   "--limit", "100", "--json", "number,title,createdAt,author,labels,body")
-    json.dump(json.loads(open_prs or "[]"), open(f'/tmp/ws_open_prs_{key}.json', 'w'))
+    json.dump(json.loads(open_prs or "[]"), open(f'{cfg.TMP_REPO_PREFIX}open_prs_{key}.json', 'w'))
 
     # Direct commits (single-parent = not a merge commit)
     commits_raw = gh("api", f"/repos/{repo}/commits?sha=master&since={SINCE}&per_page=100",
@@ -130,7 +133,7 @@ for repo in REPOS:
     # Only flag as direct if not referenced by a PR (no PR number in message)
     import re
     truly_direct = [c for c in human_commits if not re.search(r'\(#\d+\)', c.get("message", ""))]
-    json.dump(truly_direct, open(f'/tmp/ws_direct_commits_{key}.json', 'w'))
+    json.dump(truly_direct, open(f'{cfg.TMP_REPO_PREFIX}direct_commits_{key}.json', 'w'))
 
     pc = len(json.loads(closed_issues or "[]"))
     po = len(json.loads(open_issues or "[]"))

@@ -14,20 +14,18 @@ Usage:
     python3 scripts/save_snapshot.py
 """
 import json, os, glob, time
+from pathlib import Path
+import sys; sys.path.insert(0, str(Path(__file__).parent))
+import config as cfg
 
-SNAPSHOT_DIR = os.path.expanduser(
-    "~/.openclaw/workspace/nightly-results/customer-feedback/snapshots"
-)
-LAST_RUN_PATH = os.path.expanduser(
-    "~/.openclaw/workspace/nightly-results/customer-feedback/last-run.json"
-)
-os.makedirs(SNAPSHOT_DIR, exist_ok=True)
+SNAPSHOT_DIR = str(cfg.SNAPSHOT_DIR)
+LAST_RUN_PATH = cfg.LAST_RUN_FILE
 
-window = json.load(open('/tmp/cf_window.json'))
+window = json.load(open(cfg.TMP_WINDOW))
 today = window['today']
 since_date = window['since_date']
 
-items = json.load(open('/tmp/cf_feedback_items.json'))
+items = json.load(open(cfg.TMP_ITEMS))
 
 # Load previous cumulative snapshot
 prev_snapshots = sorted(glob.glob(f"{SNAPSHOT_DIR}/snapshot-*.json"))
@@ -94,7 +92,7 @@ for key, direction in [("total","up"), ("resolved","up"), ("tracked","up"),
     deltas[key] = fmt_delta(this_snapshot[key], prev.get(key), direction)
 
 json.dump({"prev_date": prev.get("date"), "deltas": deltas, "snapshot": this_snapshot},
-          open('/tmp/cf_deltas.json', 'w'), indent=2)
+          open(cfg.TMP_DELTAS, 'w'), indent=2)
 
 # Update last-run.json
 json.dump({

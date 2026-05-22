@@ -9,6 +9,9 @@ Usage:
     python3 scripts/post_slack.py --dry-run # print to stdout, skip Slack
 """
 import json, sys, urllib.request, argparse
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent))
+import config as cfg
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--dry-run", action="store_true")
@@ -16,11 +19,10 @@ args = parser.parse_args()
 
 DRY_RUN = args.dry_run
 
-config = json.load(open('/Users/nehaeglund/.openclaw/workspace/config/slack-tokens.json'))
-token = config['reports_bot_token']
-channel = config['paycontrol_reports_channel']
+token = cfg.REPORTS_BOT_TOKEN
+channel = cfg.SLACK_CHANNEL_ID
 
-report = json.load(open('/tmp/ws_report.json'))
+report = json.load(open(cfg.TMP_REPORT))
 main_message  = report['main_message']
 thread_reply_1 = report['thread_reply_1']  # week-over-week
 thread_reply_2 = report['thread_reply_2']  # stale + action items + contributors

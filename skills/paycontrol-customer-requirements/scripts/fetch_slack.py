@@ -15,16 +15,13 @@ Usage:
 """
 import json, os, subprocess, sys
 from datetime import datetime, timezone
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent))
+import config as cfg
 
-CHANNEL_ID = "C0AKQRQ6QDA"
-LAST_RUN_PATH = os.path.expanduser(
-    "~/.openclaw/workspace/nightly-results/customer-feedback/last-run.json"
-)
-
-token = os.environ.get("SLACK_TOKEN")
-if not token:
-    cfg = json.load(open(os.path.expanduser("~/.openclaw/workspace/config/slack-tokens.json")))
-    token = cfg["bot_token"]
+token = cfg.SLACK_TOKEN
+CHANNEL_ID = cfg.SLACK_CHANNEL_ID
+LAST_RUN_PATH = cfg.LAST_RUN_FILE
 
 # Determine oldest timestamp to fetch from
 oldest = "0"
@@ -49,7 +46,7 @@ resp = slack_get(
     f"?channel={CHANNEL_ID}&oldest={oldest}&limit=200"
 )
 messages = resp.get("messages", [])
-json.dump(messages, open('/tmp/cf_messages.json', 'w'), indent=2)
+json.dump(messages, open(cfg.TMP_MESSAGES, 'w'), indent=2)
 print(f"Messages fetched: {len(messages)}")
 
 # Derive window dates
@@ -58,7 +55,7 @@ since_date = today
 if messages:
     oldest_ts = min(float(m['ts']) for m in messages)
     since_date = datetime.utcfromtimestamp(oldest_ts).strftime('%Y-%m-%d')
-json.dump({"since_date": since_date, "today": today}, open('/tmp/cf_window.json', 'w'))
+json.dump({"since_date": since_date, "today": today}, open(cfg.TMP_WINDOW, 'w'))
 print(f"Window: {since_date} -> {today}")
 
 # Classify reactions
@@ -70,8 +67,8 @@ for m in messages:
             resolved_ts.append(m["ts"])
         elif r["name"] in ("+1", "thumbsup"):
             acknowledged_ts.append(m["ts"])
-json.dump(resolved_ts, open('/tmp/cf_reaction_resolved.json', 'w'))
-json.dump(acknowledged_ts, open('/tmp/cf_reaction_acknowledged.json', 'w'))
+json.dump(resolved_ts, open(cfg.TMP_RESOLVED, 'w'))
+json.dump(acknowledged_ts, open(cfg.TMP_ACKNOWLEDGED, 'w'))
 print(f"Reactions — resolved: {len(resolved_ts)}  acknowledged: {len(acknowledged_ts)}")
 
 # Fetch threads for messages that have replies
@@ -85,7 +82,7 @@ for m in messages:
         )
         replies = resp.get("messages", [])
         threads[ts] = replies[1:]  # skip parent
-json.dump(threads, open('/tmp/cf_threads.json', 'w'), indent=2)
+json.dump(threads, open(cfg.TMP_THREADS, 'w'), indent=2)
 print(f"Threads fetched: {len(threads)}")
 
 print("fetch_slack.py done.")

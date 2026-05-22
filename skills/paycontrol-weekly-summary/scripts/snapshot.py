@@ -11,15 +11,17 @@ Usage:
 """
 import json, os, glob
 from datetime import datetime, timezone
+from pathlib import Path
+import sys; sys.path.insert(0, str(Path(__file__).parent))
+import config as cfg
 
-OUT_DIR = os.path.expanduser("~/.openclaw/workspace/nightly-results/weekly-summary")
-os.makedirs(OUT_DIR, exist_ok=True)
+OUT_DIR = str(cfg.SNAPSHOT_DIR)
 
-window = json.load(open('/tmp/ws_window.json'))
+window = json.load(open(cfg.TMP_WINDOW))
 TODAY = window['today']
 
 # Load this run's stats (agent writes these after step 4)
-stats = json.load(open('/tmp/ws_stats.json'))
+stats = json.load(open(cfg.TMP_STATS))
 
 # Load previous snapshot
 snapshots = sorted(glob.glob(f"{OUT_DIR}/snapshot-*.json"))
@@ -56,7 +58,7 @@ for section in ["paycontrol", "pci", "gitops"]:
         "untracked_prs": delta("untracked_prs", section, "down"),
     }
 
-json.dump({"last_date": (last or {}).get("date"), "deltas": deltas}, open('/tmp/ws_deltas.json', 'w'), indent=2)
+json.dump({"last_date": (last or {}).get("date"), "deltas": deltas}, open(cfg.TMP_DELTAS, 'w'), indent=2)
 print("Deltas written to /tmp/ws_deltas.json")
 if last:
     print(f"Comparing against snapshot: {last['date']}")
