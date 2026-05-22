@@ -30,10 +30,10 @@ jobs:
 
       - name: Type check (mypy)
         run: |
-          mypy skills/ \
-            --ignore-missing-imports \
-            --exclude "skills/.*/tests/" \
-            --no-error-summary
+          mypy skills/paycontrol-customer-requirements/scripts/ \
+            --ignore-missing-imports --no-error-summary
+          mypy skills/paycontrol-weekly-summary/scripts/ \
+            --ignore-missing-imports --no-error-summary
 
       - name: Unit tests — paycontrol-customer-requirements
         if: always()

@@ -129,8 +129,8 @@ Path(cfg.TMP_ALL_ISSUES).write_text(json.dumps(all_issues, indent=2))
 print(f"Total issues: {len(all_issues)}")
 
 # Build issue -> PR index using a set for O(1) deduplication
-issue_to_prs = {}
-seen = {}
+issue_to_prs: dict[str, list] = {}
+seen: dict[str, set] = {}
 
 for pr in all_prs:
     refs = set(str(i["number"]) for i in pr.get("closingIssuesReferences", []))

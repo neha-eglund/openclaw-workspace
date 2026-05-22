@@ -40,7 +40,7 @@ prev = json.loads(prev_snapshots[-1].read_text()) if prev_snapshots else {}
 # Count this run's items
 new_resolved = new_tracked = new_untracked = 0
 new_by_severity = {SEVERITY_BLOCKING: 0, SEVERITY_HIGH: 0, SEVERITY_NORMAL: 0}
-new_by_category = {}
+new_by_category: dict[str, int] = {}
 
 for item in items:
     sev = item.get("severity", "")
